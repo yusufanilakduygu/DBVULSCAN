@@ -1,30 +1,143 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>DBVulScan</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DB Vulnerability Scan</title>
+  <style>
+    :root{
+      --bg:#f7f8fb; --card:#ffffff; --text:#0f172a; --muted:#475569;
+      --primary:#0ea5e9; --border:#d0e0f0; --hover:#e6f6ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif; color:var(--text); background:var(--bg);}
+    a{color:inherit; text-decoration:none}
+
+    .wrap{display:grid; grid-template-columns:260px 1fr; min-height:100vh;}
+
+    /* Sidebar */
+    .sidebar{position:sticky; top:0; height:100vh; border-right:1px solid var(--border); background:#fff; padding:16px;}
+
+    /* Brand (clickable) */
+    .brand{
+      display:flex; align-items:center; gap:12px;
+      margin-bottom:16px; padding:12px 14px; border-radius:12px;
+      background:linear-gradient(90deg, #e3f2fd 0%, #cce5ff 100%);
+      box-shadow:0 2px 6px rgba(0,0,0,0.08);
+      transition:transform .12s ease;
+    }
+    .brand:hover{transform:translateY(-1px)}
+    .brand img{width:44px; height:44px; object-fit:contain; filter:drop-shadow(0 0 4px rgba(0,0,0,0.25));}
+    .brand span{font-weight:900; font-size:16px; letter-spacing:.3px; color:#0b2255;}
+
+    .userbox{margin:12px 0 18px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#fff; color:var(--muted); font-size:13px;}
+    .sb-title{font-size:12px; font-weight:800; color:var(--muted); margin:18px 0 8px}
+    .sb-link{display:block; padding:10px 12px; border-radius:10px; border:1px solid transparent}
+    .sb-link:hover{background:var(--hover); border-color:#bfe7ff}
+    .sb-block{margin-bottom:14px; padding:8px; border:1px solid var(--border); border-radius:12px; background:#fff}
+
+    /* Main */
+    .main{padding:0 28px 28px;}
+
+    /* Topbar (clickable title) */
+    .topbar{
+      position:sticky; top:0; z-index:10;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 18px;
+      background:linear-gradient(180deg, #f0f7ff, #e4f0ff);
+      border-bottom:1px solid var(--border);
+      backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+      color:var(--text);
+    }
+    .top-left{display:flex; align-items:center; gap:10px;}
+    .top-left a{display:flex; align-items:center; gap:10px;}
+    .top-left img{width:22px; height:22px;}
+    .top-left .title{font-size:14px; font-weight:800; letter-spacing:.2px;}
+    .content{padding-top:18px;}
+
+    .pill{border:1px solid var(--border); background:#f8fbff; padding:6px 10px; border-radius:999px; color:var(--text); font-size:12px;}
+
+    .flashes{margin:10px 0;}
+    .flashes .pill{display:inline-block; margin-right:6px; margin-bottom:6px;}
+
+    @media (max-width:900px){
+      .wrap{grid-template-columns:1fr;}
+      .sidebar{position:static; height:auto;}
+    }
+  </style>
 </head>
 <body>
-  <nav style="display:flex;justify-content:space-between;padding:8px;background:#0c1733;color:#fff">
-    <div>
-      <a href="{{ url_for('home') }}" style="color:#9ecbff;margin-right:12px">Home</a>
-      {% if current_role == 'admin' %}
-        <a href="{{ url_for('users.list_users') }}">Users</a>
-      {% endif %}
-    </div>
-    <div>
-      {{ current_user }} ({{ current_role }})
-    </div>
-  </nav>
-  <main style="padding:16px">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for cat, msg in messages %}
-          <div class="flash {{ cat }}">{{ msg }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-    {% block content %}{% endblock %}
-  </main>
+  <div class="wrap">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <!-- Marka kartı: tıklanınca home -->
+      <a href="{{ url_for('home') }}" class="brand" title="Go to Home">
+        <img src="/static/img/logo.png" alt="logo" />
+        <span>DB Vulnerability Scan</span>
+      </a>
+
+      <!-- Kullanıcı / Rol -->
+      <div class="userbox">
+        <div><strong>User:</strong> {{ current_user }}</div>
+        <div><strong>Role:</strong> {{ current_role }}</div>
+      </div>
+
+      <div class="sb-block">
+        <a class="sb-link" href="/datasources">DataSources</a>
+        {% if current_role == 'admin' %}
+          <a class="sb-link" href="{{ url_for('users.list_users') }}">Users</a>
+        {% endif %}
+      </div>
+
+      <div class="sb-title">Vulnerability Assessments</div>
+      <div class="sb-block">
+        <a class="sb-link" href="/checkpoints">CheckPoints</a>
+        <a class="sb-link" href="/benchmarks">Benchmarks</a>
+        <a class="sb-link" href="/assessments">Assessments</a>
+        <a class="sb-link" href="/assessment-analysis">Assessment Analysis</a>
+      </div>
+
+      <div class="sb-title">Security Reports</div>
+      <div class="sb-block">
+        <a class="sb-link" href="/queries">Queries</a>
+        <a class="sb-link" href="/querysets">QuerySets</a>
+        <a class="sb-link" href="/reports">Reports</a>
+      </div>
+
+      <div class="sb-block">
+        <a class="sb-link" href="/help">Help</a>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <!-- ÜST BANT: başlık/ikon tıklanınca home -->
+      <div class="topbar">
+        <div class="top-left">
+          <a href="{{ url_for('home') }}" title="Go to Home">
+            <img src="/static/img/logo.png" alt="logo" />
+            <div class="title">DB Vulnerability Scan</div>
+          </a>
+        </div>
+        <div>
+          <a class="pill" href="{{ url_for('auth.logout') }}">Logout</a>
+        </div>
+      </div>
+
+      <div class="content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flashes">
+              {% for cat, msg in messages %}
+                <div class="pill">{{ msg }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
 </body>
 </html>
