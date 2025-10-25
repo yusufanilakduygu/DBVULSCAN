@@ -1,0 +1,121 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  :root{
+    --bg:#f7f8fb; --card:#ffffff; --text:#0f172a; --muted:#475569;
+    --primary:#0ea5e9; --border:#e2e8f0; --hover:#e6f6ff; --danger:#ef4444; --success:#10b981;
+  }
+  .page{max-width:1100px;margin:0 auto;}
+  .head{display:flex;justify-content:space-between;align-items:center;margin:8px 0 14px}
+  .title{font-size:24px;font-weight:800;margin:0;color:var(--text)}
+  .actions{display:flex;gap:10px;align-items:center}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;
+       color:var(--text);padding:8px 12px;border-radius:12px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--hover);border-color:#bfe7ff}
+  .btn-primary{background:var(--primary);color:#fff;border-color:transparent}
+  .btn-primary:hover{filter:brightness(0.95)}
+  .search{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;
+          padding:8px 12px;border-radius:12px}
+  .search input{border:none;outline:none;background:transparent;min-width:240px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  .table-wrap{width:100%;overflow:auto}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  thead th{position:sticky;top:0;background:#f2f7ff;color:#0b2255;font-weight:800;text-align:left;
+           padding:12px;border-bottom:1px solid var(--border)}
+  tbody td{padding:12px;border-bottom:1px solid var(--border);color:#0f172a}
+  tbody tr:hover{background:#fbfdff}
+  tbody tr:nth-child(odd){background:#fcfcff}
+  .pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border);color:var(--muted)}
+  .pill.role-admin{background:#fff0; border-color:#93c5fd; color:#1d4ed8}
+  .pill.role-analyst{border-color:#a7f3d0; color:#047857}
+  .pill.role-viewer{border-color:#fde68a; color:#92400e}
+  .status-active{border-color:#bbf7d0;color:#065f46}
+  .status-inactive{border-color:#e5e7eb;color:#6b7280}
+  .status-locked{border-color:#fecaca;color:#991b1b}
+  .btn-link{background:transparent;border:none;color:#2563eb;cursor:pointer;padding:0 6px}
+  .btn-danger{background:#fff;border:1px solid #fecaca;color:#b91c1c}
+  .btn-danger:hover{background:#fff5f5}
+  .right{display:flex;gap:8px;justify-content:flex-end}
+  @media (max-width:900px){
+    .head{flex-direction:column;align-items:stretch;gap:10px}
+    .actions{justify-content:space-between}
+    .search input{min-width:120px}
+  }
+</style>
+
+<div class="page">
+  <div class="head">
+    <h1 class="title">Users</h1>
+    <div class="actions">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M11 4a7 7 0 105.292 12.292l3.707 3.707 1.414-1.414-3.707-3.707A7 7 0 0011 4z" stroke="#64748b" stroke-width="2"/></svg>
+        <input id="q" type="text" placeholder="Search username, name, email..." oninput="filterRows()" />
+      </div>
+      <a class="btn btn-primary" href="{{ url_for('users.create_user') }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+        New User
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table id="usersTable">
+        <thead>
+          <tr>
+            <th style="width:70px">ID</th>
+            <th>Username</th>
+            <th>Full Name</th>
+            <th>Email</th>
+            <th style="width:120px">Role</th>
+            <th style="width:120px">Status</th>
+            <th style="width:160px">Last Login</th>
+            <th style="width:180px">Password Changed</th>
+            <th style="width:150px;text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.user_id }}</td>
+            <td><strong>{{ r.username }}</strong></td>
+            <td>{{ r.full_name or '' }}</td>
+            <td>{{ r.email or '' }}</td>
+            <td>
+              <span class="pill role-{{ r.role }}">{{ r.role }}</span>
+            </td>
+            <td>
+              <span class="pill status-{{ r.status }}">{{ r.status }}</span>
+            </td>
+            <td>{{ r.last_login or '' }}</td>
+            <td>{{ r.passwd_change_date or '' }}</td>
+            <td>
+              <div class="right">
+                <a class="btn btn-link" href="{{ url_for('users.edit_user', user_id=r.user_id) }}">Edit</a>
+                <form action="{{ url_for('users.delete_user', user_id=r.user_id) }}" method="post" onsubmit="return confirm('Delete user {{ r.username }}?');">
+                  <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not rows %}
+          <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:22px">No users found.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  function filterRows(){
+    const q = (document.getElementById('q').value || '').toLowerCase();
+    const rows = document.querySelectorAll('#usersTable tbody tr');
+    rows.forEach(tr=>{
+      const txt = tr.innerText.toLowerCase();
+      tr.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+</script>
+{% endblock %}

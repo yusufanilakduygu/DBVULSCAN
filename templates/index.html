@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBVulScans — Dashboard</title>
+  <style>
+    :root{
+      --bg:#f7f8fb; --card:#ffffff; --text:#0f172a; --muted:#475569;
+      --primary:#0ea5e9; --border:#e2e8f0; --hover:#e6f6ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif; color:var(--text); background:var(--bg);}
+    a{color:inherit; text-decoration:none}
+    .wrap{display:grid; grid-template-columns:260px 1fr; min-height:100vh;}
+    /* Sidebar */
+    .sidebar{position:sticky; top:0; height:100vh; border-right:1px solid var(--border); background:#fff; padding:16px;}
+    .sb-title{font-size:14px; font-weight:700; color:var(--muted); margin:20px 0 8px}
+    .sb-link{display:block; padding:10px 12px; border-radius:10px; border:1px solid transparent}
+    .sb-link:hover{background:var(--hover); border-color:#bfe7ff}
+    .sb-block{margin-bottom:16px; padding:12px; border:1px solid var(--border); border-radius:12px; background:#fff}
+    /* Main */
+    .main{padding:24px 28px;}
+    .topbar{display:flex; justify-content:flex-end; align-items:center; gap:12px; margin-bottom:12px;}
+    .pill{border:1px solid var(--border); background:#fff; padding:6px 10px; border-radius:999px; color:var(--muted); font-size:13px;}
+    .title{text-align:center; line-height:1.3; margin-top:4px;}
+    .title h1{margin:0; font-size:28px; font-weight:800;}
+    .title h2{margin:2px 0 18px; font-size:20px; font-weight:800; color:var(--muted);}
+    .version{display:flex; justify-content:center; margin-bottom:18px;}
+    .version .chip{min-width:280px; text-align:center; border:1px solid var(--border); background:#fff; padding:8px 12px; border-radius:10px; color:var(--muted);}
+    /* Grid of cards */
+    .grid{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:18px; margin-top:6px;}
+    @media (max-width:1200px){ .grid{grid-template-columns:repeat(3,1fr);} }
+    @media (max-width:900px){ .wrap{grid-template-columns:1fr;} .sidebar{position:static; height:auto;} .grid{grid-template-columns:repeat(2,1fr);} }
+    .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 14px; text-align:center; transition:.15s ease; display:flex; flex-direction:column; align-items:center; gap:10px;}
+    .card:hover{transform:translateY(-2px); border-color:#bfe7ff; background:#fff;}
+    .card img{width:64px; height:64px; object-fit:contain; display:block;}
+    .card .label{font-weight:700;}
+    .footer-note{margin-top:22px; font-size:12px; color:var(--muted); text-align:center;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sb-block">
+        <a class="sb-link" href="/datasources">DataSources</a>
+        {% if (user.role if user else current_role) == 'admin' %}
+          <a class="sb-link" href="{{ url_for('users.list_users') }}">Users</a>
+        {% endif %}
+
+      </div>
+
+      <div class="sb-title">Vulnerability Assessments</div>
+      <div class="sb-block">
+        <a class="sb-link" href="/checkpoints">CheckPoints</a>
+        <a class="sb-link" href="/benchmarks">Benchmarks</a>
+        <a class="sb-link" href="/assessments">Assessments</a>
+        <a class="sb-link" href="/assessment-analysis">Assessment Analysis</a>
+      </div>
+
+      <div class="sb-title">Security Reports</div>
+      <div class="sb-block">
+        <a class="sb-link" href="/queries">Queries</a>
+        <a class="sb-link" href="/querysets">QuerySets</a>
+        <a class="sb-link" href="/reports">Reports</a>
+      </div>
+
+      <div class="sb-block">
+        <a class="sb-link" href="/help">Help</a>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <!-- SAĞ ÜSTTE USER / ROLE -->
+      <div class="topbar">
+        <span class="pill">
+          {{ (user.username if user else current_user) }} ({{ (user.role if user else current_role) }})
+        </span>
+        <a class="pill" href="{{ url_for('auth.logout') }}">Logout</a>
+      </div>
+
+      <div class="title">
+        <h1>Database Vulnerability Scans</h1>
+        <h2>DBVulScans</h2>
+      </div>
+
+      <div class="version">
+        <div class="chip">
+          {% if versions and versions|length %}
+            {{ versions|join(' • ') }}
+          {% else %}
+            No version data
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- ICON CARDS -->
+      <section class="grid">
+        <!-- Row 1 -->
+        <a class="card" href="/checkpoints">
+          <img src="/static/img/icon_checkpoints_large.png" alt="CheckPoints icon" />
+          <div class="label">Checkpoints</div>
+        </a>
+        <a class="card" href="/benchmarks">
+          <img src="/static/img/icon_benchmarks_large.png" alt="Benchmarks icon" />
+          <div class="label">Benchmarks</div>
+        </a>
+        <a class="card" href="/assessments">
+          <img src="/static/img/icon_assessments_large.png" alt="Assessments icon" />
+          <div class="label">Assessments</div>
+        </a>
+        <a class="card" href="/assessment-analysis">
+          <img src="/static/img/icon_assessment_analysis_large.png" alt="Assessment Analysis icon" />
+          <div class="label">Assessment Analysis</div>
+        </a>
+
+        <!-- Row 2 -->
+        <a class="card" href="/queries">
+          <img src="/static/img/icon_queries_large.png" alt="Queries icon" />
+          <div class="label">Queries</div>
+        </a>
+        <a class="card" href="/querysets">
+          <img src="/static/img/icon_querysets_large.png" alt="Query Sets icon" />
+          <div class="label">Query Sets</div>
+        </a>
+        <a class="card" href="/reports">
+          <img src="/static/img/icon_reports_large.png" alt="Reports icon" />
+          <div class="label">Reports</div>
+        </a>
+        <a class="card" href="/datasources">
+          <img src="/static/img/icon_datasources_large.png" alt="Data Sources icon" />
+          <div class="label">Data Sources</div>
+        </a>
+
+        <!-- Row 3 -->
+        <a class="card" href="{{ url_for('users.list_users') }}">
+          <img src="/static/img/icon_users_large.png" alt="Users icon" />
+          <div class="label">Users</div>
+        </a>
+        <a class="card" href="/help">
+          <img src="/static/img/icon_help_large.png" alt="Help icon" />
+          <div class="label">Help</div>
+        </a>
+      </section>
+
+      <div class="footer-note">© DBVulScans</div>
+    </main>
+  </div>
+</body>
+</html>
