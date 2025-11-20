@@ -1,0 +1,201 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Edit' if item else 'New' }} Datasource · DB Vulnerability Scan{% endblock %}
+{% block content %}
+<style>
+.form-card{background:#fff;border:1px solid #e5e9f2;border-radius:12px;max-width:760px}
+.form-head{padding:12px 14px;border-bottom:1px solid #e5e9f2;font-weight:800}
+.form-body{padding:14px}
+.form-row{display:flex;flex-direction:column;margin-bottom:12px}
+.form-row label{font-weight:600;margin-bottom:6px}
+.form-row input,.form-row select{border:1px solid #e5e9f2;border-radius:8px;padding:10px}
+.form-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.btn{padding:10px 14px;border-radius:10px;text-decoration:none;display:inline-block;border:1px solid #e5e9f2;background:#fff;color:#0f172a;cursor:pointer}
+.btn:hover{background:#f1f5f9}
+.btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8}
+.btn-primary:hover{background:#1d4ed8}
+.btn-muted{background:#fff;border:1px solid #e5e9f2;color:#0f172a}
+.btn-check{background:#10b981;color:#fff;border:1px solid #059669}
+.btn-check:hover{background:#059669}
+.btn-test{background:#0ea5e9;color:#fff;border:1px solid #0284c7}
+.btn-test:hover{background:#0284c7}
+/* DB-specific blocks (ilk yüklemede gizli) */
+.db-oracle{display:none;}
+.db-mssql{display:none;}
+
+/* Password eye icon */
+.password-row{position:relative;}
+.password-row .pass-input{padding-right:42px;}
+.toggle-eye{
+  position:absolute;
+  right:10px;
+  top:32px;
+  border:none;
+  background:transparent;
+  cursor:pointer;
+  font-size:14px;
+  color:#64748b;
+}
+.toggle-eye:hover{color:#0f172a;}
+</style>
+
+<div class="form-card">
+  <div class="form-head">{{ 'Edit' if item else 'New' }} Datasource</div>
+  <form method="post" class="form-body" id="dsForm">
+    {% if item %}
+    <input type="hidden" id="ds_id" value="{{ item.ds_id }}">
+    {% endif %}
+
+    {# DB TYPE EN BAŞTA #}
+    <div class="form-row">
+      <label>DB Type</label>
+      {% set val_db = item.db_type if item else '' %}
+      <select name="db_type" id="db_type" required>
+        <option value="">--choose--</option>
+        <option value="oracle" {{ 'selected' if val_db=='oracle' }}>Oracle</option>
+        <option value="mssql" {{ 'selected' if val_db=='mssql' }}>SQL Server</option>
+      </select>
+    </div>
+
+    {# ORTAK ALANLAR #}
+    <div class="form-row">
+      <label>Name</label>
+      <input name="ds_name" required value="{{ item.ds_name if item }}">
+    </div>
+
+    <div class="form-row">
+      <label>Description</label>
+      <input name="description" value="{{ item.description if item }}">
+    </div>
+
+    <div class="form-row">
+      <label>Host</label>
+      <input name="host" required value="{{ item.host if item }}">
+    </div>
+
+    <div class="form-row">
+      <label>Port</label>
+      <input name="port" type="number" required value="{{ item.port if item }}">
+    </div>
+
+    <div class="form-row">
+      <label>Username</label>
+      <input name="username" value="{{ item.username if item }}">
+    </div>
+
+    <div class="form-row password-row">
+      <label>Password {{ '(leave blank to keep)' if item }}</label>
+      <input id="ds_password" class="pass-input" name="password" type="password">
+      <button type="button" class="toggle-eye" onclick="toggleDsPassword()" aria-label="Show or hide password">
+      </button>
+    </div>
+
+    {# ==== MSSQL ÖZEL ALANLAR ==== #}
+    <div class="form-row db-mssql">
+      <label>Auth Mode</label>
+      {% set val_auth = item.auth_mode if item else 'sql' %}
+      <select name="auth_mode">
+        <option value="sql" {{ 'selected' if val_auth=='sql' }}>SQL Authentication</option>
+        <option value="windows" {{ 'selected' if val_auth=='windows' }}>Windows (Domain)</option>
+      </select>
+    </div>
+
+    <div class="form-row db-mssql">
+      <label>Domain</label>
+      <input name="domain" value="{{ item.domain if item }}">
+    </div>
+
+    <div class="form-row db-mssql">
+      <label>Instance Name</label>
+      <input name="instance_name" value="{{ item.instance_name if item }}">
+    </div>
+
+    <div class="form-row db-mssql">
+      <label>Database Name</label>
+      <input name="database_name" value="{{ item.database_name if item }}">
+    </div>
+
+    {# ==== ORACLE ÖZEL ALANLAR ==== #}
+    <div class="form-row db-oracle">
+      <label>Oracle Service Name</label>
+      <input name="oracle_service_name" value="{{ item.oracle_service_name if item }}">
+    </div>
+
+    <div class="form-row db-oracle">
+      <label>Oracle SID</label>
+      <input name="oracle_sid" value="{{ item.oracle_sid if item }}">
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save</button>
+      {% if item %}
+      <button type="button" class="btn btn-check" onclick="checkConnection({{ item.ds_id }})">Check Connection</button>
+      <button type="button" class="btn btn-test" onclick="testPort({{ item.ds_id }})">Test Port</button>
+      {% endif %}
+      <a class="btn btn-muted" href="{{ url_for('datasources.list_datasources') }}">Back to Datasources</a>
+    </div>
+  </form>
+</div>
+
+<script>
+async function checkConnection(id){
+  try{
+    const res = await fetch(`/datasources/${id}/check`, {
+      method:'POST',
+      headers:{'X-Requested-With':'fetch'}
+    });
+    const data = await res.json();
+    alert((data.ok ? '✅ ' : '❌ ') + data.message);
+  }catch(e){
+    alert('❌ Connection test failed: ' + e);
+  }
+}
+
+async function testPort(id){
+  try{
+    const res = await fetch(`/datasources/${id}/test-port`, {
+      method:'POST',
+      headers:{'X-Requested-With':'fetch'}
+    });
+    const data = await res.json();
+    alert((data.ok ? '✅ ' : '❌ ') + data.message);
+  }catch(e){
+    alert('❌ Port test failed: ' + e);
+  }
+}
+
+function toggleDsPassword(){
+  const input = document.getElementById('ds_password');
+  if (!input) return;
+  input.type = (input.type === 'password') ? 'text' : 'password';
+}
+
+/* DB type seçimine göre alan göster/gizle */
+function updateDbSpecificRows(){
+  const select = document.getElementById('db_type');
+  if (!select) return;
+  const val = select.value;
+
+  const oracleRows = document.querySelectorAll('.db-oracle');
+  const mssqlRows = document.querySelectorAll('.db-mssql');
+
+  if (val === 'oracle') {
+    oracleRows.forEach(r => r.style.display = 'flex');
+    mssqlRows.forEach(r => r.style.display = 'none');
+  } else if (val === 'mssql') {
+    oracleRows.forEach(r => r.style.display = 'none');
+    mssqlRows.forEach(r => r.style.display = 'flex');
+  } else {
+    oracleRows.forEach(r => r.style.display = 'none');
+    mssqlRows.forEach(r => r.style.display = 'none');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  const select = document.getElementById('db_type');
+  if (select) {
+    select.addEventListener('change', updateDbSpecificRows);
+    updateDbSpecificRows(); // edit ekranı için ilk açılışta uygula
+  }
+});
+</script>
+{% endblock %}

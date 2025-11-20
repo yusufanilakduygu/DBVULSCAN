@@ -5,6 +5,7 @@ from config import SECRET_KEY
 from auth import auth_bp           # login/logout blueprint
 from users import users_bp         # users CRUD blueprint
 from db import get_db              # MySQL bağlantısı
+from datasources import datasources_bp  # datasources blueprint
 
 def create_app():
     app = Flask(__name__)
@@ -14,9 +15,10 @@ def create_app():
 
     # Blueprint kayıtları
     app.register_blueprint(auth_bp)
-    app.register_blueprint(users_bp)   # url_prefix users/__init__.py içinde zaten var
+    app.register_blueprint(users_bp)        # url_prefix users/__init__.py içinde zaten var
+    app.register_blueprint(datasources_bp)  # url_prefix datasources/__init__.py içinde
 
-    # Her şablonda current_user ve current_role otomatik görünsün
+    # Her şablonda current_user ve current_role otomatik görünsün (session tabanlı)
     @app.context_processor
     def inject_user():
         u = session.get("user") or {}
@@ -32,7 +34,7 @@ def create_app():
         if "user" not in session:
             return redirect(url_for("auth.login"))
 
-        # Versions tablosundan verileri al
+        # Versions tablosundan verileri al (varsayılan davranışın)
         try:
             with get_db().cursor() as cur:
                 cur.execute("SELECT line FROM versions")

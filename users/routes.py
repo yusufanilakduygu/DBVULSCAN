@@ -23,7 +23,7 @@ def list_users():
         )
         rows = cur.fetchall()
     # Global templates: templates/users/list.html
-    return render_template("users/list.html", rows=rows)
+    return render_template("users/list.html", users=rows)
 
 
 # CREATE

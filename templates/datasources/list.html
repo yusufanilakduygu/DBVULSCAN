@@ -1,0 +1,187 @@
+{% extends "layout.html" %}
+{% block title %}Datasources · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+.ds-wrap {
+  background:#fff;
+  border:1px solid #e5e9f2;
+  border-radius:12px;
+}
+.ds-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 14px;
+  border-bottom:1px solid #e5e9f2;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.ds-title {
+  font-weight:800;
+}
+.ds-actions a.btn {
+  display:inline-block;
+  padding:8px 12px;
+  border-radius:8px;
+  text-decoration:none;
+}
+.btn-primary {
+  background:#2563eb;
+  color:#fff;
+  border:1px solid #1d4ed8;
+}
+.btn-primary:hover {
+  background:#1d4ed8;
+}
+.badge {
+  display:inline-block;
+  padding:2px 8px;
+  border:1px solid #e5e9f2;
+  border-radius:999px;
+  background:#fff;
+  font-size:12px;
+}
+.ds-table {
+  width:100%;
+  border-collapse:collapse;
+}
+.ds-table th,
+.ds-table td {
+  padding:10px 12px;
+  border-top:1px solid #eef2f7;
+  text-align:left;
+  vertical-align:middle;
+}
+.ds-table thead th {
+  background:#f8fafc;
+  font-weight:700;
+  border-top:none;
+}
+.actions a,
+.actions button {
+  display:inline-block;
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:13px;
+  text-decoration:none;
+  cursor:pointer;
+  border:1px solid #e5e9f2;
+  background:#fff;
+}
+.actions a:hover,
+.actions button:hover {
+  background:#f8fafc;
+}
+.actions .danger {
+  border-color:#fecaca;
+  color:#7f1d1d;
+  background:#fff;
+}
+.actions .danger:hover {
+  background:#fff1f2;
+}
+.search-box {
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.search-box input {
+  border:1px solid #e5e9f2;
+  border-radius:8px;
+  padding:6px 10px;
+  width:220px;
+}
+@media (max-width: 980px) {
+  .ds-head {
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}
+</style>
+
+<div class="ds-wrap">
+  <div class="ds-head">
+    <div class="ds-title">Datasources</div>
+
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Search datasources..." onkeyup="filterTable()">
+    </div>
+
+    <div class="ds-actions">
+      <a href="{{ url_for('datasources.new_datasource') }}" class="btn btn-primary">New Datasource</a>
+    </div>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="ds-table" id="dsTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>DB Type</th>
+          <th>Host</th>
+          <th>Port</th>
+          <th>Username</th>
+          <th>Instance</th>
+          <th>Service Name</th>
+          <th>SID</th>
+          <th style="width:200px">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.ds_name }}</td>
+          <td><span class="badge">{{ r.db_type }}</span></td>
+          <td>{{ r.host }}</td>
+          <td>{{ r.port }}</td>
+          <td>{{ r.username }}</td>
+
+          {# MSSQL için instance_name göster, diğerlerinde '-' #}
+          <td>
+            {% if r.db_type == 'mssql' %}
+              {{ r.instance_name }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+
+          <td>{{ r.oracle_service_name }}</td>
+          <td>{{ r.oracle_sid }}</td>
+
+          <td class="actions">
+            <a href="{{ url_for('datasources.edit_datasource', ds_id=r.ds_id) }}">Edit</a>
+            <form action="{{ url_for('datasources.delete_datasource', ds_id=r.ds_id) }}"
+                  method="post" style="display:inline"
+                  onsubmit="return confirm('Delete {{ r.ds_name }}?');">
+              <button class="danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function filterTable() {
+  const input = document.getElementById("searchInput");
+  const filter = input.value.toLowerCase();
+  const table = document.getElementById("dsTable");
+  const rows = table.getElementsByTagName("tr");
+  for (let i = 1; i < rows.length; i++) {
+    let visible = false;
+    const cells = rows[i].getElementsByTagName("td");
+    for (let j = 0; j < cells.length; j++) {
+      const text = cells[j].textContent || cells[j].innerText;
+      if (text.toLowerCase().includes(filter)) {
+        visible = true;
+        break;
+      }
+    }
+    rows[i].style.display = visible ? "" : "none";
+  }
+}
+</script>
+{% endblock %}

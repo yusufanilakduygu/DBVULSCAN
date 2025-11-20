@@ -61,7 +61,9 @@
       <img src="/static/img/icon_reports_large.png" alt="Reports icon" />
       <div class="label">Reports</div>
     </a>
-    <a class="card" href="/datasources">
+
+    <!-- Burayı blueprint'e bağladım -->
+    <a class="card" href="{{ url_for('datasources.list_datasources') }}">
       <img src="/static/img/icon_datasources_large.png" alt="Data Sources icon" />
       <div class="label">Data Sources</div>
     </a>
