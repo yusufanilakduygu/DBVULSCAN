@@ -1,0 +1,177 @@
+{% extends "layout.html" %}
+{% block title %}Run SQL Detail · {{ checkpoint.name }}{% endblock %}
+
+{% block content %}
+<style>
+.rd-wrap{
+    background:#fff;
+    border:1px solid #e5e9f2;
+    border-radius:12px;
+    padding:16px;
+    max-width:1100px;
+    margin:auto;
+}
+.rd-header{margin-bottom:16px;}
+.rd-header h3{font-weight:800;margin:0 0 6px 0;}
+.rd-meta{font-size:13px;color:#555;}
+.rd-section{margin-top:18px;}
+.rd-section h4{font-size:14px;font-weight:700;margin-bottom:6px;}
+.rd-sql-box{
+    border:1px solid #e5e9f2;
+    border-radius:8px;
+    background:#f9fafb;
+    padding:8px 10px;
+    font-family:monospace;
+    font-size:13px;
+    white-space:pre-wrap;
+}
+.rd-select{
+    width:100%;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid #e5e9f2;
+    font-size:14px;
+    margin-top:6px;
+}
+.rd-actions{margin-top:16px;display:flex;gap:10px;}
+.btn{padding:8px 16px;border-radius:8px;border:1px solid #d0d7e2;background:#fff;cursor:pointer;font-size:14px;text-decoration:none;}
+.btn-primary{background:#2563eb;color:#fff;border-color:#1d4ed8;}
+.btn-primary:hover{background:#1d4ed8;}
+.btn-secondary:hover{background:#f3f4f6;}
+.rd-result{margin-top:18px;padding:10px 12px;border-radius:8px;font-size:13px;}
+.rd-result.ok{background:#ecfdf3;border:1px solid #bbf7d0;color:#166534;}
+.rd-result.error{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;}
+.rd-table-wrap{
+    margin-top:12px;
+    max-height:420px;
+    overflow:auto;
+    border:1px solid #e5e9f2;
+    border-radius:8px;
+}
+.rd-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+}
+.rd-table th,
+.rd-table td{
+    padding:6px 8px;
+    border-bottom:1px solid #eef2f7;
+}
+.rd-table th{
+    background:#f3f4f6;
+    font-weight:600;
+}
+.rd-table tr:nth-child(even) td{
+    background:#fafafa;
+}
+</style>
+
+<div class="rd-wrap">
+  <div class="rd-header">
+    <h3>Run SQL Detail – {{ checkpoint.name }}</h3>
+    <div class="rd-meta">
+      DB Type: <strong>{{ checkpoint.db_type }}</strong> ·
+      Severity: <strong>{{ checkpoint.severity }}</strong>
+    </div>
+  </div>
+
+  <!-- Pre SQL Detail -->
+  <div class="rd-section">
+    <h4>Pre SQL Detail</h4>
+    {% if checkpoint.pre_sql_detail %}
+      <div class="rd-sql-box">{{ checkpoint.pre_sql_detail }}</div>
+    {% else %}
+      <div style="font-size:13px;color:#777;">No Pre SQL Detail defined.</div>
+    {% endif %}
+  </div>
+
+  <!-- SQL Detail -->
+  <div class="rd-section">
+    <h4>SQL Detail</h4>
+    <div class="rd-sql-box">{{ checkpoint.sql_detail }}</div>
+  </div>
+
+  <!-- Datasource select -->
+  <div class="rd-section">
+    <h4>Choose Datasource ({{ checkpoint.db_type }})</h4>
+
+    {% if datasources %}
+    <form method="post">
+      <select name="datasource_id" class="rd-select">
+        <option value="">-- Select datasource --</option>
+        {% for ds in datasources %}
+        <option value="{{ ds.id }}"
+          {% if selected_ds and selected_ds.id == ds.id %}selected{% endif %}>
+          {{ ds.name }} ({{ ds.host }}:{{ ds.port }})
+          {% if ds.database_name %} · DB: {{ ds.database_name }}{% endif %}
+          {% if ds.oracle_service_name %} · Service: {{ ds.oracle_service_name }}{% endif %}
+          {% if ds.oracle_sid %} · SID: {{ ds.oracle_sid }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+
+      <div class="rd-actions">
+        <button type="submit" class="btn btn-primary">Run SQL Detail</button>
+        <a href="{{ url_for('checkpoints.edit_checkpoint', checkpoint_id=checkpoint.id) }}"
+           class="btn btn-secondary">Back to Checkpoint</a>
+      </div>
+    </form>
+    {% else %}
+      <p style="font-size:13px;color:#666;">
+        No datasource defined for this DB Type. Please create one in the Datasources screen first.
+      </p>
+      <div class="rd-actions">
+        <a href="{{ url_for('checkpoints.edit_checkpoint', checkpoint_id=checkpoint.id) }}"
+           class="btn btn-secondary">Back to Checkpoint</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Result / Error -->
+  {% if status %}
+    {% if status == 'OK' %}
+      <div class="rd-result ok">
+        <strong>SQL Detail executed successfully.</strong><br>
+        {% if detail_rows %}
+          Returned {{ detail_rows|length }} row(s).
+        {% else %}
+          Query returned no rows.
+        {% endif %}
+      </div>
+    {% elif status == 'ERROR' %}
+      <div class="rd-result error">
+        <strong>Result: ERROR</strong><br>
+        <span style="font-size:13px; white-space:pre-wrap;">
+          {{ error_message }}
+        </span>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- Data table -->
+  {% if status == 'OK' and detail_rows %}
+    <div class="rd-table-wrap">
+      <table class="rd-table">
+        <thead>
+          <tr>
+            {% for col in detail_columns %}
+              <th>{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail_rows %}
+          <tr>
+            {% for col in detail_columns %}
+              <td>{{ row[col] }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

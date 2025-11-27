@@ -1,0 +1,215 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  {% if mode == 'edit' %}Edit Checkpoint{% else %}New Checkpoint{% endif %} · DB Vulnerability Scan
+{% endblock %}
+
+{% block content %}
+
+<style>
+.form-wrap {
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    max-width: 1100px;
+    margin: auto;
+}
+
+/* Labels */
+.form-wrap label {
+    font-size: 14px;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* Inputs */
+.form-wrap input[type="text"],
+.form-wrap select,
+.form-wrap textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.form-row {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-col {
+    flex: 1;
+}
+
+textarea {
+    min-height: 90px;
+}
+
+.big-textarea {
+    min-height: 120px;
+}
+
+/* Buttons */
+.form-buttons {
+    margin-top: 25px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.btn-std {
+    padding: 10px 26px;
+    border-radius: 8px;
+    border: 1px solid #dcdcdc;
+    background: #fff;
+    cursor: pointer;
+    font-size: 15px;
+    text-decoration: none;
+    text-align: center;
+}
+
+.btn-save {
+    background: #2563eb;
+    color: white;
+    border-color: #1d4ed8;
+}
+
+.btn-save:hover {
+    background: #1d4ed8;
+}
+
+.btn-back:hover,
+.btn-sql:hover,
+.btn-test:hover {
+    background: #f4f4f4;
+}
+
+.btn-disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+</style>
+
+
+<div class="form-wrap">
+
+    <h3 style="font-weight:800; margin-bottom:25px;">
+        {% if mode == 'edit' %}Edit Checkpoints{% else %}New Checkpoints{% endif %}
+    </h3>
+
+    <form id="checkpointForm" method="post">
+
+        <!-- Row 1 -->
+        <div class="form-row">
+            <div class="form-col">
+                <label>Name</label>
+                <input type="text" name="name" value="{{ checkpoint.name }}">
+            </div>
+
+            <div class="form-col">
+                <label>DB Type</label>
+                <select name="db_type">
+                    <option value="oracle" {% if checkpoint.db_type == 'oracle' %}selected{% endif %}>Oracle</option>
+                    <option value="mssql" {% if checkpoint.db_type == 'mssql' %}selected{% endif %}>MSSQL</option>
+                </select>
+            </div>
+
+            <div class="form-col">
+                <label>Severity</label>
+                <select name="severity">
+                    <option value="low" {% if checkpoint.severity == 'low' %}selected{% endif %}>Low</option>
+                    <option value="medium" {% if checkpoint.severity == 'medium' %}selected{% endif %}>Medium</option>
+                    <option value="high" {% if checkpoint.severity == 'high' %}selected{% endif %}>High</option>
+                    <option value="critical" {% if checkpoint.severity == 'critical' %}selected{% endif %}>Critical</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Description -->
+        <label>Description</label>
+        <textarea class="big-textarea" name="description">{{ checkpoint.description }}</textarea>
+
+        <!-- SQL Test Row -->
+        <div class="form-row">
+            <div class="form-col">
+                <label>Pre SQL Test</label>
+                <textarea name="pre_sql_test">{{ checkpoint.pre_sql_test }}</textarea>
+            </div>
+
+            <div class="form-col">
+                <label>SQL Test</label>
+                <textarea name="sql_test">{{ checkpoint.sql_test }}</textarea>
+            </div>
+        </div>
+
+        <label>Test Condition</label>
+        <input type="text" name="test_condition" value="{{ checkpoint.test_condition }}">
+
+        <!-- SQL Detail Row -->
+        <div class="form-row">
+            <div class="form-col">
+                <label>Pre SQL Detail</label>
+                <textarea name="pre_sql_detail">{{ checkpoint.pre_sql_detail }}</textarea>
+            </div>
+
+            <div class="form-col">
+                <label>SQL Detail</label>
+                <textarea name="sql_detail">{{ checkpoint.sql_detail }}</textarea>
+            </div>
+        </div>
+
+        <!-- Text pass/fail -->
+        <div class="form-row">
+            <div class="form-col">
+                <label>Text Pass</label>
+                <textarea name="text_pass">{{ checkpoint.text_pass }}</textarea>
+            </div>
+
+            <div class="form-col">
+                <label>Text Fail</label>
+                <textarea name="text_fail">{{ checkpoint.text_fail }}</textarea>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <label>Notes</label>
+        <textarea class="big-textarea" name="notes">{{ checkpoint.notes }}</textarea>
+
+        <!-- Buttons -->
+        <div class="form-buttons">
+
+            <!-- SAVE (commit + formda kal) -->
+            <button type="submit" class="btn-std btn-save">Save</button>
+
+            <!-- Back (commit yok, sadece listeye döner) -->
+            <a href="{{ url_for('checkpoints.list_checkpoints') }}" class="btn-std btn-back">Back to Checkpoints</a>
+
+            <!-- Run Test -->
+            {% if mode == 'edit' and checkpoint.id %}
+              <a href="{{ url_for('checkpoints.run_checkpoint_test', checkpoint_id=checkpoint.id) }}"
+                 class="btn-std btn-test">Run Test</a>
+            {% else %}
+              <span class="btn-std btn-test btn-disabled" title="Run Test için önce kaydedin.">Run Test</span>
+            {% endif %}
+
+            <!-- Run SQL Detail -->
+            {% if mode == 'edit' and checkpoint.id %}
+              <a href="{{ url_for('checkpoints.run_checkpoint_detail', checkpoint_id=checkpoint.id) }}"
+              class="btn-std btn-sql">Run SQL Detail</a>
+            {% else %}
+              <span class="btn-std btn-sql btn-disabled" title="Run SQL Detail için önce kaydedin.">
+              Run SQL Detail
+  </span>
+{% endif %}
+
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}

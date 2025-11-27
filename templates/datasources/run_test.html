@@ -1,0 +1,127 @@
+{% extends "layout.html" %}
+{% block title %}Run Test · {{ checkpoint.name }}{% endblock %}
+
+{% block content %}
+<style>
+.rt-wrap{
+    background:#fff;
+    border:1px solid #e5e9f2;
+    border-radius:12px;
+    padding:16px;
+    max-width:1100px;
+    margin:auto;
+}
+.rt-header{margin-bottom:16px;}
+.rt-header h3{font-weight:800;margin:0 0 6px 0;}
+.rt-meta{font-size:13px;color:#555;}
+.rt-section{margin-top:18px;}
+.rt-section h4{font-size:14px;font-weight:700;margin-bottom:6px;}
+.rt-sql-box{
+    border:1px solid #e5e9f2;
+    border-radius:8px;
+    background:#f9fafb;
+    padding:8px 10px;
+    font-family:monospace;
+    font-size:13px;
+    white-space:pre-wrap;
+}
+.rt-ds-list{
+    margin-top:8px;
+    max-height:220px;
+    overflow-y:auto;
+    border:1px solid #e5e9f2;
+    border-radius:8px;
+}
+.rt-ds-item{
+    padding:8px 10px;
+    border-bottom:1px solid #eef2f7;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+}
+.rt-ds-item:last-child{border-bottom:none;}
+.rt-ds-name{font-weight:600;}
+.rt-ds-meta{color:#666;font-size:12px;}
+.rt-actions{margin-top:16px;display:flex;gap:10px;}
+.btn{padding:8px 16px;border-radius:8px;border:1px solid #d0d7e2;background:#fff;cursor:pointer;font-size:14px;text-decoration:none;}
+.btn-primary{background:#2563eb;color:#fff;border-color:#1d4ed8;}
+.btn-primary:hover{background:#1d4ed8;}
+.btn-secondary:hover{background:#f3f4f6;}
+.rt-result{margin-top:18px;padding:10px 12px;border-radius:8px;font-size:13px;}
+.rt-result.ok{background:#ecfdf3;border:1px solid #bbf7d0;color:#166534;}
+.rt-result.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;}
+</style>
+
+<div class="rt-wrap">
+  <div class="rt-header">
+    <h3>Run Test – {{ checkpoint.name }}</h3>
+    <div class="rt-meta">
+      DB Type: <strong>{{ checkpoint.db_type }}</strong> ·
+      Severity: <strong>{{ checkpoint.severity }}</strong>
+    </div>
+  </div>
+
+  <div class="rt-section">
+    <h4>SQL Test</h4>
+    <div class="rt-sql-box">{{ checkpoint.sql_test }}</div>
+    {% if checkpoint.test_condition %}
+    <div style="margin-top:4px;font-size:12px;color:#555;">
+      Test Condition: <code>{{ checkpoint.test_condition }}</code>
+    </div>
+    {% endif %}
+    {% if checkpoint.pre_sql_test %}
+    <div style="margin-top:6px;font-size:12px;color:#555;">
+      Pre SQL Test tanımlı.
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="rt-section">
+    <h4>Choose Datasource ({{ checkpoint.db_type }})</h4>
+
+    {% if datasources %}
+    <form method="post">
+      <div class="rt-ds-list">
+        {% for ds in datasources %}
+        <label class="rt-ds-item">
+          <input type="radio" name="datasource_id" value="{{ ds.id }}"
+                 {% if selected_ds and selected_ds.id == ds.id %}checked{% endif %}>
+          <div>
+            <div class="rt-ds-name">{{ ds.name }}</div>
+            <div class="rt-ds-meta">
+              {{ ds.host }}:{{ ds.port }}
+              {% if ds.database_name %} · DB: {{ ds.database_name }}{% endif %}
+              {% if ds.oracle_service_name %} · Service: {{ ds.oracle_service_name }}{% endif %}
+              {% if ds.oracle_sid %} · SID: {{ ds.oracle_sid }}{% endif %}
+            </div>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="rt-actions">
+        <button type="submit" class="btn btn-primary">Run Test</button>
+        <a href="{{ url_for('checkpoints.edit_checkpoint', checkpoint_id=checkpoint.id) }}"
+           class="btn btn-secondary">Back to Checkpoint</a>
+      </div>
+    </form>
+    {% else %}
+    <p style="font-size:13px;color:#666;">
+      Bu DB Type için tanımlı datasource bulunamadı. Önce Datasources ekranından uygun bir bağlantı eklemelisin.
+    </p>
+    <div class="rt-actions">
+      <a href="{{ url_for('checkpoints.edit_checkpoint', checkpoint_id=checkpoint.id) }}"
+         class="btn btn-secondary">Back to Checkpoint</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if result_message %}
+  <div class="rt-result info">
+    {{ result_message }}
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

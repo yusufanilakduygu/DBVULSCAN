@@ -6,6 +6,7 @@ from auth import auth_bp           # login/logout blueprint
 from users import users_bp         # users CRUD blueprint
 from db import get_db              # MySQL bağlantısı
 from datasources import datasources_bp  # datasources blueprint
+from checkpoints import checkpoints_bp
 
 def create_app():
     app = Flask(__name__)
@@ -17,6 +18,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)        # url_prefix users/__init__.py içinde zaten var
     app.register_blueprint(datasources_bp)  # url_prefix datasources/__init__.py içinde
+    app.register_blueprint(checkpoints_bp, url_prefix='/checkpoints')
 
     # Her şablonda current_user ve current_role otomatik görünsün (session tabanlı)
     @app.context_processor
