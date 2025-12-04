@@ -8,6 +8,23 @@ nohup: ignoring input
 [33mPress CTRL+C to quit[0m
  * Restarting with stat
  * Debugger is active!
- * Debugger PIN: 142-641-938
-192.168.137.1 - - [27/Nov/2025 12:31:37] "GET /login HTTP/1.1" 200 -
-192.168.137.1 - - [27/Nov/2025 12:31:37] "[36mGET /static/img/DBVulScan.png HTTP/1.1[0m" 304 -
+ * Debugger PIN: 853-781-618
+192.168.137.1 - - [04/Dec/2025 07:28:15] "GET /login HTTP/1.1" 200 -
+192.168.137.1 - - [04/Dec/2025 07:28:15] "[36mGET /static/img/DBVulScan.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:17] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "[32mPOST /login HTTP/1.1[0m" 302 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "GET / HTTP/1.1" 200 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "[36mGET /static/img/icon_checkpoints_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "[36mGET /static/img/icon_benchmarks_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "[36mGET /static/img/icon_assessments_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "[36mGET /static/img/icon_querysets_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "[36mGET /static/img/icon_queries_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "[36mGET /static/img/icon_assessment_analysis_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:24] "[36mGET /static/img/icon_reports_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:25] "[36mGET /static/img/icon_datasources_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:25] "[36mGET /static/img/icon_users_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:25] "[36mGET /static/img/icon_help_large.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [04/Dec/2025 07:28:28] "GET /datasources/ HTTP/1.1" 200 -
+192.168.137.1 - - [04/Dec/2025 07:28:31] "GET /datasources/2/edit HTTP/1.1" 200 -
+192.168.137.1 - - [04/Dec/2025 07:29:27] "[32mPOST /datasources/2/edit HTTP/1.1[0m" 302 -
+192.168.137.1 - - [04/Dec/2025 07:29:27] "GET /datasources/2/edit HTTP/1.1" 200 -

@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, session
 from . import checkpoints_bp
 from db import get_db
 
@@ -97,27 +97,98 @@ def evaluate_condition(result_value, condition_text):
 
 
 # ---------- LIST ---------- #
-
 @checkpoints_bp.route('/')
 def list_checkpoints():
     db = get_db()
     cursor = db.cursor()
 
-    cursor.execute("""
-        SELECT 
-            Id       AS id,
-            Name     AS name,
-            DB_Type  AS db_type,
+    # --- Search param: URL varsa onu al, yoksa session'dan oku ---
+    q_param = request.args.get('q')
+    if q_param is not None:
+        search = q_param.strip()
+        session['cp_search'] = search  # boş da olsa güncel değeri yaz
+    else:
+        search = session.get('cp_search', '').strip()
+
+    # --- Pagination params ---
+    try:
+        page = int(request.args.get('page', 1))
+    except (TypeError, ValueError):
+        page = 1
+
+    if page < 1:
+        page = 1
+
+    per_page = 15  # her sayfada kaç checkpoint gösterileceği
+
+    # --- Dinamik WHERE ---
+    where_clause = ""
+    params_count = []
+
+    if search:
+        where_clause = """
+            WHERE
+                Name LIKE %s
+                OR DB_Type LIKE %s
+                OR Severity LIKE %s
+        """
+        like = f"%{search}%"
+        params_count = [like, like, like]
+
+    # --- Toplam kayıt sayısı ---
+    cursor.execute(f"SELECT COUNT(*) AS cnt FROM checkpoints {where_clause}", params_count)
+    total_records = cursor.fetchone()["cnt"]
+
+    # --- Sayfa / offset hesapla ---
+    if total_records == 0:
+        total_pages = 1
+        page = 1
+        offset = 0
+    else:
+        total_pages = (total_records + per_page - 1) // per_page
+        if page > total_pages:
+            page = total_pages
+        offset = (page - 1) * per_page
+
+    # --- İlgili sayfadaki kayıtlar ---
+    params_rows = params_count + [per_page, offset]
+
+    cursor.execute(
+        f"""
+        SELECT
+            Id AS id,
+            Name AS name,
+            DB_Type AS db_type,
             Severity AS severity
         FROM checkpoints
+        {where_clause}
         ORDER BY Name ASC
-    """)
+        LIMIT %s OFFSET %s
+        """,
+        params_rows,
+    )
 
-    rows = cursor.fetchall()  # DictCursor → sözlük döner
+    rows = cursor.fetchall()
 
-    return render_template('checkpoints/list.html', rows=rows)
+    # Gösterilen satır aralığı
+    if total_records == 0:
+        start_record = 0
+        end_record = 0
+    else:
+        start_record = offset + 1
+        end_record = min(offset + per_page, total_records)
 
-
+    return render_template(
+        "checkpoints/list.html",
+        rows=rows,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        total_records=total_records,
+        start_record=start_record,
+        end_record=end_record,
+        search=search,
+    )
 
 
 # ---------- NEW ---------- #
@@ -138,8 +209,8 @@ def new_checkpoint():
         text_fail = request.form.get('text_fail')
         notes = request.form.get('notes')
 
-        if not name or not db_type or not sql_test or not sql_detail:
-            flash('Name, DB Type, SQL Test ve SQL Detail zorunludur.', 'danger')
+        if not name or not db_type or not sql_test or not sql_detail or not test_condition:
+            flash('Name, DB Type, SQL Test ve SQL Detail and condition field must be entered.', 'danger')
             return render_template('checkpoints/form.html', mode='new', checkpoint=request.form)
 
         db = get_db()
@@ -204,8 +275,8 @@ def edit_checkpoint(checkpoint_id):
         text_fail = request.form.get('text_fail')
         notes = request.form.get('notes')
 
-        if not name or not db_type or not sql_test or not sql_detail:
-            flash('Name, DB Type, SQL Test ve SQL Detail zorunludur.', 'danger')
+        if not name or not db_type or not sql_test or not sql_detail or not test_condition:
+            flash('Name, DB Type, SQL Test ve SQL Detail and condition must be entered', 'danger')
             checkpoint = dict(request.form)
             checkpoint['id'] = checkpoint_id
             return render_template('checkpoints/form.html', mode='edit', checkpoint=checkpoint)
@@ -226,7 +297,7 @@ def edit_checkpoint(checkpoint_id):
         ))
         db.commit()
 
-        flash('Checkpoint güncellendi.', 'success')
+        flash('Checkpoint has been updated successfully.', 'success')
         return redirect(url_for('checkpoints.edit_checkpoint', checkpoint_id=checkpoint_id))
 
     cursor.execute("""
