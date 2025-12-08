@@ -6,29 +6,55 @@
 .ds-wrap{background:#fff;border:1px solid #e5e9f2;border-radius:12px;}
 .ds-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e9f2;flex-wrap:wrap;gap:8px}
 .ds-title{font-weight:800}
+.ds-meta{font-size:13px;color:#64748b}
 .ds-actions a.btn{display:inline-block;padding:8px 12px;border-radius:8px;text-decoration:none}
 .btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8}
 .btn-primary:hover{background:#1d4ed8}
+.btn-muted{background:#fff;border:1px solid #e5e9f2;color:#0f172a}
+.btn-muted:hover{background:#f1f5f9}
 .badge{display:inline-block;padding:2px 8px;border:1px solid #e5e9f2;border-radius:999px;background:#fff;font-size:12px}
 .ds-table{width:100%;border-collapse:collapse}
 .ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle}
 .ds-table thead th{background:#f8fafc;font-weight:700;border-top:none}
+.ds-name a{font-weight:600;text-decoration:none;color:#0f172a}
+.ds-name a:hover{text-decoration:underline}
 .actions a,.actions button{display:inline-block;padding:6px 10px;border-radius:8px;font-size:13px;text-decoration:none;cursor:pointer;border:1px solid #e5e9f2;background:#fff}
 .actions a:hover,.actions button:hover{background:#f8fafc}
 .actions .danger{border-color:#fecaca;color:#7f1d1d;background:#fff}
 .actions .danger:hover{background:#fff1f2}
 .search-box{display:flex;align-items:center;gap:6px}
 .search-box input{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;width:220px}
-@media (max-width: 980px){ .ds-head{flex-direction:column;align-items:flex-start} }
+.ds-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 14px 12px 14px;border-top:1px solid #e5e9f2;font-size:13px;flex-wrap:wrap;gap:8px}
+.ds-pagination{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ds-pagination a{padding:6px 10px;border-radius:999px;border:1px solid #e5e9f2;text-decoration:none;background:#fff;font-size:13px;color:#0f172a}
+.ds-pagination a:hover{background:#f1f5f9}
+.ds-pagination span{color:#64748b}
+@media (max-width: 980px){
+  .ds-head{flex-direction:column;align-items:flex-start}
+  .ds-footer{flex-direction:column;align-items:flex-start}
+}
 </style>
 
 <div class="ds-wrap">
   <div class="ds-head">
-    <div class="ds-title">Users</div>
-
-    <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Search users..." onkeyup="filterTable()">
+    <div>
+      <div class="ds-title">Users</div>
+      <div class="ds-meta">
+        Page {{ page }} / {{ pages }} · {{ total }} records (max 10 per page)
+      </div>
     </div>
+
+    <form method="get" class="search-box">
+      <input type="text"
+             name="search"
+             id="searchInput"
+             placeholder="Search users..."
+             value="{{ search or '' }}">
+      <button type="submit" class="btn btn-muted">Search</button>
+      {% if search %}
+        <a href="{{ url_for('users.list_users', clear=1) }}" class="btn btn-muted">Clear</a>
+      {% endif %}
+    </form>
 
     <div class="ds-actions">
       {% if current_role != 'viewer' %}
@@ -54,20 +80,25 @@
       <tbody>
         {% for u in users %}
         <tr>
-          <td>{{ u.username }}</td>
+          <td class="ds-name">
+            <a href="{{ url_for('users.edit_user', user_id=u.user_id) }}">
+              {{ u.username }}
+            </a>
+          </td>
           <td>{{ u.full_name }}</td>
           <td>{{ u.email }}</td>
           <td><span class="badge">{{ u.role }}</span></td>
           <td>
-            {% if u.active %}
+            {% if u.status == 'active' %}
               <span class="badge" style="border-color:#bbf7d0;background:#f0fdf4;">Active</span>
+            {% elif u.status == 'locked' %}
+              <span class="badge" style="border-color:#fed7aa;background:#fff7ed;">Locked</span>
             {% else %}
-              <span class="badge" style="border-color:#fecaca;background:#fef2f2;">Inactive</span>
+              <span class="badge" style="border-color:#e5e7eb;background:#f9fafb;">Inactive</span>
             {% endif %}
           </td>
           {% if current_role != 'viewer' %}
           <td class="actions">
-            <a href="{{ url_for('users.edit_user', user_id=u.user_id) }}">Edit</a>
             <form action="{{ url_for('users.delete_user', user_id=u.user_id) }}"
                   method="post" style="display:inline"
                   onsubmit="return confirm('Delete {{ u.username }}?');">
@@ -77,30 +108,39 @@
           {% endif %}
         </tr>
         {% endfor %}
+        {% if users|length == 0 %}
+        <tr>
+          <td colspan="{% if current_role != 'viewer' %}6{% else %}5{% endif %}"
+              style="padding:14px; color:#64748b; font-size:13px;">
+            No users found.
+          </td>
+        </tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
+
+  <div class="ds-footer">
+    <div>
+      Showing
+      {% if total == 0 %}
+        0
+      {% else %}
+        {{ (page-1)*per_page + 1 }}–{{ (page-1)*per_page + users|length }}
+      {% endif %}
+      of {{ total }} records
+    </div>
+    <div class="ds-pagination">
+      {% if page > 1 %}
+        <a href="{{ url_for('users.list_users', page=1, search=search) }}">&laquo; First</a>
+        <a href="{{ url_for('users.list_users', page=page-1, search=search) }}">&lsaquo; Prev</a>
+      {% endif %}
+      <span>Page {{ page }} / {{ pages }}</span>
+      {% if page < pages %}
+        <a href="{{ url_for('users.list_users', page=page+1, search=search) }}">Next &rsaquo;</a>
+        <a href="{{ url_for('users.list_users', page=pages, search=search) }}">Last &raquo;</a>
+      {% endif %}
+    </div>
+  </div>
 </div>
-
-<script>
-function filterTable() {
-  const input = document.getElementById("searchInput");
-  const filter = input.value.toLowerCase();
-  const table = document.getElementById("userTable");
-  const rows = table.getElementsByTagName("tr");
-
-  for (let i = 1; i < rows.length; i++) {
-    let visible = false;
-    const cells = rows[i].getElementsByTagName("td");
-    for (let j = 0; j < cells.length; j++) {
-      const text = cells[j].textContent || cells[j].innerText;
-      if (text.toLowerCase().includes(filter)) {
-        visible = true;
-        break;
-      }
-    }
-    rows[i].style.display = visible ? "" : "none";
-  }
-}
-</script>
 {% endblock %}

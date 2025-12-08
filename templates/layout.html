@@ -100,9 +100,14 @@
       <!-- Kısa hızlı menü -->
       <div class="section">
         <div class="menu">
+          {# DataSources sadece admin'e gösteriliyor #}
+          {% if current_role == 'admin' %}
           <a href="{{ url_for('datasources.list_datasources') }}"
              class="{% if request.path.startswith('/datasources') %}active{% endif %}">DataSources</a>
-          {% if current_role in ['admin','editor'] %}
+          {% endif %}
+
+          {# Users menüsü de sadece admin'e açık (routes zaten @admin_required) #}
+          {% if current_role == 'admin' %}
           <a href="{{ url_for('users.list_users') }}"
              class="{% if request.path.startswith('/users') %}active{% endif %}">Users</a>
           {% endif %}

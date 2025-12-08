@@ -39,18 +39,106 @@ def list_datasources():
     if rl:
         return rl
 
-    sql = """
-        SELECT ds_id, ds_name, db_type, host, port, username,
-               oracle_service_name, oracle_sid
-          FROM datasources
-         ORDER BY ds_name
+    # ---- Search & pagination (session persistent) ----
+    # raw query params
+    raw_search = request.args.get("search")
+    raw_page = request.args.get("page", type=int)
+    clear = request.args.get("clear")
+
+    # Clear isteği varsa arama ve sayfa bilgisini sıfırla
+    if clear:
+        session.pop("datasources_search", None)
+        session.pop("datasources_page", None)
+        search = ""
+        page = 1
+    else:
+        # Search kutusuna yeni bir şey yazıldıysa
+        if raw_search is not None:
+            search = (raw_search or "").strip()
+            session["datasources_search"] = search
+            # Yeni aramada her zaman 1. sayfadan başla
+            page = 1
+        else:
+            search = session.get("datasources_search", "")
+
+        # Sayfa bilgisi
+        if raw_page is not None:
+            page = raw_page
+        else:
+            page = session.get("datasources_page", 1)
+
+    if page is None or page < 1:
+        page = 1
+
+    per_page = 10
+
+    base_sql = """
+        FROM datasources
+        WHERE 1=1
     """
+    params = {}
+
+    if search:
+        base_sql += """
+          AND (
+                ds_name LIKE %(q)s
+            OR  host LIKE %(q)s
+            OR  username LIKE %(q)s
+            OR  db_type LIKE %(q)s
+            OR  IFNULL(instance_name,'') LIKE %(q)s
+            OR  IFNULL(oracle_service_name,'') LIKE %(q)s
+            OR  IFNULL(oracle_sid,'') LIKE %(q)s
+          )
+        """
+        params["q"] = f"%{search}%"
+
+    count_sql = "SELECT COUNT(*) AS total " + base_sql
 
     with get_repo_conn() as con, con.cursor() as cur:
-        cur.execute(sql)
+        # Toplam kayıt
+        cur.execute(count_sql, params)
+        total = cur.fetchone()["total"] if cur.rowcount else 0
+
+        pages = (total + per_page - 1) // per_page if total else 1
+        if page > pages:
+            page = pages
+
+        # page'i session'a yaz (formlardan geri dönüşte aynı sayfaya gelebilsin)
+        session["datasources_page"] = page
+
+        offset = (page - 1) * per_page
+
+        data_sql = """
+            SELECT
+                ds_id,
+                ds_name,
+                db_type,
+                host,
+                port,
+                username,
+                instance_name,
+                oracle_service_name,
+                oracle_sid
+        """ + base_sql + """
+            ORDER BY ds_name
+            LIMIT %(limit)s OFFSET %(offset)s
+        """
+
+        params["limit"] = per_page
+        params["offset"] = offset
+
+        cur.execute(data_sql, params)
         rows = cur.fetchall()
 
-    return render_template("datasources/list.html", rows=rows)
+    return render_template(
+        "datasources/list.html",
+        rows=rows,
+        page=page,
+        pages=pages,
+        per_page=per_page,
+        total=total,
+        search=search,
+    )
 
 
 # ---------------------- NEW ----------------------
@@ -315,18 +403,33 @@ def _check_sqlserver(host, port, user, pwd, domain=None, auth_mode="sql"):
     import pyodbc
 
     server = f"{host},{port}" if port else host
-    if (auth_mode or "sql").lower() == "windows":
+    mode = (auth_mode or "sql").lower()
+
+    # Guardium tarzı: Windows (Domain) auth her zaman şifre ister
+    if mode == "windows":
+        if not pwd:
+            raise RuntimeError(
+                "Windows (Domain) authentication requires a password in DBVulScan."
+            )
+
         uid = f"{domain}\\{user}" if domain else user
+
         conn_str = (
             "DRIVER={ODBC Driver 18 for SQL Server};"
             f"SERVER={server};"
             "Encrypt=Yes;"
             "TrustServerCertificate=Yes;"
             "Connection Timeout=5;"
-            f"UID={uid};"
+            f"UID={uid};PWD={pwd};"
             "DATABASE=master;"
         )
     else:
+        # SQL Authentication
+        if not pwd:
+            raise RuntimeError(
+                "SQL authentication requires a password in DBVulScan."
+            )
+
         conn_str = (
             "DRIVER={ODBC Driver 18 for SQL Server};"
             f"SERVER={server};"

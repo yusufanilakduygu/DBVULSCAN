@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash
 import pymysql
 from db import get_db
@@ -12,18 +12,97 @@ from . import users_bp
 @login_required
 @admin_required
 def list_users():
+    # ---- Search & pagination (session persistent) ----
+    raw_search = request.args.get("search")
+    raw_page = request.args.get("page", type=int)
+    clear = request.args.get("clear")
+
+    if clear:
+        session.pop("users_search", None)
+        session.pop("users_page", None)
+        search = ""
+        page = 1
+    else:
+        if raw_search is not None:
+            search = (raw_search or "").strip()
+            session["users_search"] = search
+            page = 1
+        else:
+            search = session.get("users_search", "")
+
+        if raw_page is not None:
+            page = raw_page
+        else:
+            page = session.get("users_page", 1)
+
+    if page is None or page < 1:
+        page = 1
+
+    per_page = 10
+
+    base_sql = "FROM users WHERE 1=1"
+    params = []
+
+    if search:
+        like = f"%{search}%"
+        base_sql += """
+          AND (
+                username   LIKE %s
+            OR  full_name LIKE %s
+            OR  email     LIKE %s
+            OR  role      LIKE %s
+            OR  status    LIKE %s
+          )
+        """
+        params.extend([like, like, like, like, like])
+
+    count_sql = "SELECT COUNT(*) AS total " + base_sql
+
     with get_db().cursor() as cur:
-        cur.execute(
-            """
-            SELECT user_id, username, full_name, email, role, status,
-                   last_login, passwd_change_date
-            FROM users
+        # toplam kayıt
+        cur.execute(count_sql, params)
+        row_cnt = cur.fetchone()
+        total = row_cnt["total"] if row_cnt else 0
+
+        pages = (total + per_page - 1) // per_page if total else 1
+        if page > pages:
+            page = pages
+
+        session["users_page"] = page
+
+        offset = (page - 1) * per_page
+
+        data_sql = """
+            SELECT
+                user_id,
+                username,
+                full_name,
+                email,
+                role,
+                status,
+                last_login,
+                passwd_change_date
+        """ + base_sql + """
             ORDER BY user_id DESC
-            """
-        )
+            LIMIT %s OFFSET %s
+        """
+
+        params_data = list(params)
+        params_data.extend([per_page, offset])
+
+        cur.execute(data_sql, params_data)
         rows = cur.fetchall()
+
     # Global templates: templates/users/list.html
-    return render_template("users/list.html", users=rows)
+    return render_template(
+        "users/list.html",
+        users=rows,
+        page=page,
+        pages=pages,
+        per_page=per_page,
+        total=total,
+        search=search,
+    )
 
 
 # CREATE
