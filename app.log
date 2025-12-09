@@ -8,19 +8,27 @@ nohup: ignoring input
 [33mPress CTRL+C to quit[0m
  * Restarting with stat
  * Debugger is active!
- * Debugger PIN: 123-904-673
-192.168.137.1 - - [08/Dec/2025 17:58:33] "GET /login HTTP/1.1" 200 -
-192.168.137.1 - - [08/Dec/2025 17:58:33] "[36mGET /static/img/DBVulScan.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:35] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
-192.168.137.1 - - [08/Dec/2025 17:58:40] "[32mPOST /login HTTP/1.1[0m" 302 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "GET / HTTP/1.1" 200 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_checkpoints_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_benchmarks_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_assessment_analysis_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_assessments_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_queries_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_querysets_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_reports_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_users_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_datasources_large.png HTTP/1.1[0m" 304 -
-192.168.137.1 - - [08/Dec/2025 17:58:41] "[36mGET /static/img/icon_help_large.png HTTP/1.1[0m" 304 -
+ * Debugger PIN: 849-208-890
+192.168.137.1 - - [09/Dec/2025 07:09:09] "GET /login HTTP/1.1" 200 -
+192.168.137.1 - - [09/Dec/2025 07:09:09] "[36mGET /static/img/DBVulScan.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [09/Dec/2025 07:09:11] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+192.168.137.1 - - [09/Dec/2025 07:09:15] "[32mPOST /login HTTP/1.1[0m" 302 -
+192.168.137.1 - - [09/Dec/2025 07:09:15] "GET / HTTP/1.1" 200 -
+192.168.137.1 - - [09/Dec/2025 07:10:54] "[32mGET /checkpoints HTTP/1.1[0m" 308 -
+192.168.137.1 - - [09/Dec/2025 07:10:54] "GET /checkpoints/ HTTP/1.1" 200 -
+192.168.137.1 - - [09/Dec/2025 07:12:58] "[32mGET /checkpoints HTTP/1.1[0m" 308 -
+192.168.137.1 - - [09/Dec/2025 07:12:58] "GET /checkpoints/ HTTP/1.1" 200 -
+192.168.137.1 - - [09/Dec/2025 07:13:09] "GET / HTTP/1.1" 200 -
+192.168.137.1 - - [09/Dec/2025 07:13:10] "GET / HTTP/1.1" 200 -
+192.168.137.1 - - [09/Dec/2025 07:13:14] "[32mGET /logout HTTP/1.1[0m" 302 -
+192.168.137.1 - - [09/Dec/2025 07:13:14] "GET /login HTTP/1.1" 200 -
+192.168.137.1 - - [09/Dec/2025 07:13:15] "[36mGET /static/img/DBVulScan.png HTTP/1.1[0m" 304 -
+192.168.137.1 - - [09/Dec/2025 07:13:22] "[32mPOST /login HTTP/1.1[0m" 302 -
+192.168.137.1 - - [09/Dec/2025 07:13:22] "GET / HTTP/1.1" 200 -
+ * Detected change in '/home/anil/dbvulscan/app.py', reloading
+ * Restarting with stat
+Traceback (most recent call last):
+  File "/home/anil/dbvulscan/app.py", line 33, in <module>
+    @app.route("/")
+     ^^^
+NameError: name 'app' is not defined

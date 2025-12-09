@@ -6,24 +6,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{
-      --bg:#f3f6fb;        /* çok açık gri-mavi arka plan */
-      --panel:#ffffff;     /* kart/menü arkaplanı */
-      --line:#e5e9f2;      /* panel sınırı */
-      --text:#0f172a;      /* koyu metin */
-      --muted:#64748b;     /* ikincil metin */
-      --hover:#f8fbff;     /* menü hover */
-      --brand:#0f172a;     /* marka yazısı */
-      --chip:#eef2ff;      /* aktif menü çipi */
+      --bg:#f3f6fb; --panel:#ffffff; --line:#e5e9f2; --text:#0f172a;
+      --muted:#64748b; --hover:#f8fbff; --brand:#0f172a; --chip:#eef2ff;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
       margin:0;
-      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background:var(--bg);
       color:var(--text);
     }
-    .wrap{display:grid; grid-template-columns: 270px 1fr; min-height:100vh;}
+    .wrap{
+      display:grid;
+      grid-template-columns:270px 1fr;
+      min-height:100vh;
+    }
 
     /* SIDEBAR */
     .sidebar{
@@ -38,47 +36,122 @@
       padding:12px;
     }
     .brand{
-      font-weight:800; font-size:18px; text-decoration:none; color:var(--brand);
-      display:block; text-align:left;
+      font-weight:800;
+      font-size:18px;
+      text-decoration:none;
+      color:var(--brand);
+      display:block;
+      text-align:left;
     }
-    .userbox{margin-top:10px; line-height:1.35; font-size:13px; color:var(--muted)}
+    .userbox{
+      margin-top:10px;
+      line-height:1.35;
+      font-size:13px;
+      color:var(--muted);
+    }
     .section{margin-top:12px}
-    .section h4{
-      margin:10px 8px 6px; font-size:12px; color:var(--muted); font-weight:700;
+
+    .menu{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding:8px;
     }
-    .menu{display:flex; flex-direction:column; gap:8px; padding:8px}
     .menu a{
-      display:block; padding:10px 12px; border:1px solid var(--line); border-radius:12px;
-      color:var(--text); text-decoration:none; background:#fff; text-align:left; font-weight:600;
-      transition:.15s ease; box-shadow:0 0 0 rgba(0,0,0,0);
+      display:block;
+      padding:10px 12px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      color:var(--text);
+      text-decoration:none;
+      background:#fff;
+      text-align:left;
+      font-weight:600;
+      transition:.15s;
     }
-    .menu a:hover{ background:var(--hover) }
-    .menu a.active{ background:var(--chip); border-color:#c7d2fe }
+    .menu a:hover{
+      background:var(--hover);
+    }
+    .menu a.active{
+      background:var(--chip);
+      border-color:#c7d2fe;
+    }
+
+    /* Accordion titles (bold, no frame) */
+    .acc-title{
+      font-weight:800;
+      font-size:14px;
+      margin:20px 4px 10px;
+      cursor:pointer;
+      color:#0f172a;
+    }
+
+    .acc-panel{
+      display:none;
+      padding-left:0;
+    }
+    .acc-panel.open{
+      display:block;
+    }
 
     /* TOP BAR */
     .top{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:12px 18px; border-bottom:1px solid var(--line); background:#fff;
-      position:sticky; top:0; z-index:5;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:12px 18px;
+      border-bottom:1px solid var(--line);
+      background:#fff;
+      position:sticky;
+      top:0;
+      z-index:5;
     }
     .top a.title{
-      color:var(--brand); text-decoration:none; font-weight:800; font-size:18px;
+      color:var(--brand);
+      text-decoration:none;
+      font-weight:800;
+      font-size:18px;
     }
     .logout a{
-      display:inline-block; padding:8px 12px; border:1px solid var(--line);
-      border-radius:10px; text-decoration:none; color:#0f172a; background:#fff;
+      display:inline-block;
+      padding:8px 12px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      text-decoration:none;
+      color:#0f172a;
+      background:#fff;
     }
 
     /* MAIN */
-    .main{ padding:20px 24px 28px; }
-    .flashwrap{margin:0 0 12px; display:grid; gap:8px}
-    .flash{padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff}
-    .flash.success{ background:#ecfdf5; border-color:#a7f3d0; color:#065f46 }
-    .flash.error{ background:#fef2f2; border-color:#fecaca; color:#7f1d1d }
+    .main{
+      padding:20px 24px 28px;
+    }
+    .flashwrap{
+      margin:0 0 12px;
+      display:grid;
+      gap:8px;
+    }
+    .flash{
+      padding:10px 12px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:#fff;
+    }
+    .flash.success{
+      background:#ecfdf5;
+      border-color:#a7f3d0;
+      color:#065f46;
+    }
+    .flash.error{
+      background:#fef2f2;
+      border-color:#fecaca;
+      color:#7f1d1d;
+    }
 
-    /* responsive */
-    @media (max-width: 980px){
-      .wrap{grid-template-columns:1fr}
+    @media (max-width:980px){
+      .wrap{
+        grid-template-columns:1fr;
+      }
       .sidebar{display:none}
       .main{padding:16px}
     }
@@ -97,49 +170,92 @@
         </div>
       </div>
 
-      <!-- Kısa hızlı menü -->
+      <!-- Accordion groups -->
       <div class="section">
-        <div class="menu">
-          {# DataSources sadece admin'e gösteriliyor #}
-          {% if current_role == 'admin' %}
-          <a href="{{ url_for('datasources.list_datasources') }}"
-             class="{% if request.path.startswith('/datasources') %}active{% endif %}">DataSources</a>
-          {% endif %}
 
-          {# Users menüsü de sadece admin'e açık (routes zaten @admin_required) #}
-          {% if current_role == 'admin' %}
-          <a href="{{ url_for('users.list_users') }}"
-             class="{% if request.path.startswith('/users') %}active{% endif %}">Users</a>
-          {% endif %}
+        <!-- Vulnerability Assessments -->
+        <div class="acc-group">
+          <div class="acc-title" data-acc="va">Vulnerability Assessments</div>
+          <div class="acc-panel" id="acc-va">
+            <div class="menu">
+              <a href="/checkpoints"
+                 class="{% if request.path.startswith('/checkpoints') %}active{% endif %}">
+                CheckPoints
+              </a>
+              <a href="/benchmarks"
+                 class="{% if request.path.startswith('/benchmarks') %}active{% endif %}">
+                Benchmarks
+              </a>
+              <a href="/assessments"
+                 class="{% if request.path.startswith('/assessments') %}active{% endif %}">
+                Assessments
+              </a>
+              <a href="/assessment-analysis"
+                 class="{% if request.path.startswith('/assessment-analysis') %}active{% endif %}">
+                Assessment Analysis
+              </a>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- Vulnerability Assessments -->
-      <div class="section">
-        <h4>Vulnerability Assessments</h4>
-        <div class="menu">
-          <a href="/checkpoints" class="{% if request.path.startswith('/checkpoints') %}active{% endif %}">CheckPoints</a>
-          <a href="/benchmarks" class="{% if request.path.startswith('/benchmarks') %}active{% endif %}">Benchmarks</a>
-          <a href="/assessments" class="{% if request.path.startswith('/assessments') %}active{% endif %}">Assessments</a>
-          <a href="/assessment-analysis" class="{% if request.path.startswith('/assessment-analysis') %}active{% endif %}">Assessment Analysis</a>
+        <!-- Security Reports -->
+        <div class="acc-group">
+          <div class="acc-title" data-acc="sr">Security Reports</div>
+          <div class="acc-panel" id="acc-sr">
+            <div class="menu">
+              <a href="/queries"
+                 class="{% if request.path.startswith('/queries') %}active{% endif %}">
+                Queries
+              </a>
+              <a href="/querysets"
+                 class="{% if request.path.startswith('/querysets') %}active{% endif %}">
+                QuerySets
+              </a>
+              <a href="/reports"
+                 class="{% if request.path.startswith('/reports') %}active{% endif %}">
+                Reports
+              </a>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- Security Reports -->
-      <div class="section">
-        <h4>Security Reports</h4>
-        <div class="menu">
-          <a href="/queries" class="{% if request.path.startswith('/queries') %}active{% endif %}">Queries</a>
-          <a href="/querysets" class="{% if request.path.startswith('/querysets') %}active{% endif %}">QuerySets</a>
-          <a href="/reports" class="{% if request.path.startswith('/reports') %}active{% endif %}">Reports</a>
+        <!-- Configuration (admin only) -->
+        {% if current_role == 'admin' %}
+        <div class="acc-group">
+          <div class="acc-title" data-acc="cfg">Configuration</div>
+          <div class="acc-panel" id="acc-cfg">
+            <div class="menu">
+              <a href="/settings"
+                 class="{% if request.path.startswith('/settings') %}active{% endif %}">
+                Settings
+              </a>
+              <a href="{{ url_for('datasources.list_datasources') }}"
+                 class="{% if request.path.startswith('/datasources') %}active{% endif %}">
+                DataSources
+              </a>
+              <a href="{{ url_for('users.list_users') }}"
+                 class="{% if request.path.startswith('/users') %}active{% endif %}">
+                Users
+              </a>
+              <a href="/domain-users"
+                 class="{% if request.path.startswith('/domain-users') %}active{% endif %}">
+                Domain Users
+              </a>
+            </div>
+          </div>
         </div>
-      </div>
+        {% endif %}
 
-      <!-- Help -->
-      <div class="section">
-        <div class="menu">
-          <a href="/help" class="{% if request.path.startswith('/help') %}active{% endif %}">Help</a>
+        <!-- Help -->
+        <div class="section">
+          <div class="menu">
+            <a href="/help"
+               class="{% if request.path.startswith('/help') %}active{% endif %}">
+              Help
+            </a>
+          </div>
         </div>
+
       </div>
     </aside>
 
@@ -167,5 +283,28 @@
       </main>
     </div>
   </div>
+
+  <!-- Accordion state script -->
+  <script>
+    document.querySelectorAll(".acc-title").forEach(t => {
+      const key = "acc_" + t.dataset.acc;
+      const panel = document.getElementById("acc-" + t.dataset.acc);
+
+      if (!panel) return;
+
+      // daha önce açık bırakılmışsa aç
+      if (localStorage.getItem(key) === "open") {
+        panel.classList.add("open");
+      }
+
+      t.addEventListener("click", () => {
+        panel.classList.toggle("open");
+        localStorage.setItem(
+          key,
+          panel.classList.contains("open") ? "open" : "closed"
+        );
+      });
+    });
+  </script>
 </body>
 </html>

@@ -6,7 +6,7 @@ from auth import auth_bp           # login/logout blueprint
 from users import users_bp         # users CRUD blueprint
 from db import get_db              # MySQL bağlantısı
 from datasources import datasources_bp  # datasources blueprint
-from checkpoints import checkpoints_bp
+from checkpoints import checkpoints_bp  # checkpoints blueprint
 
 def create_app():
     app = Flask(__name__)
@@ -16,9 +16,9 @@ def create_app():
 
     # Blueprint kayıtları
     app.register_blueprint(auth_bp)
-    app.register_blueprint(users_bp)        # url_prefix users/__init__.py içinde zaten var
+    app.register_blueprint(users_bp)        # url_prefix users/__init__.py içinde
     app.register_blueprint(datasources_bp)  # url_prefix datasources/__init__.py içinde
-    app.register_blueprint(checkpoints_bp, url_prefix='/checkpoints')
+    app.register_blueprint(checkpoints_bp, url_prefix="/checkpoints")
 
     # Her şablonda current_user ve current_role otomatik görünsün (session tabanlı)
     @app.context_processor
@@ -29,26 +29,15 @@ def create_app():
             "current_role": u.get("role", "viewer"),
         }
 
-    # Ana sayfa
+    # Ana sayfa – ŞİMDİLİK DEBUG MODE
     @app.route("/")
     def home():
         # Login yapılmamışsa login ekranına yönlendir
         if "user" not in session:
             return redirect(url_for("auth.login"))
 
-        # Versions tablosundan verileri al (varsayılan davranışın)
-        try:
-            with get_db().cursor() as cur:
-                cur.execute("SELECT line FROM versions")
-                versions = [r["line"] for r in cur.fetchall()]
-        except Exception as e:
-            versions = [f"Version info unavailable ({e})"]
-
-        return render_template(
-            "index.html",
-            user=session["user"],
-            versions=versions
-        )
+        # DEBUG: şimdilik template yerine düz tekst dönüyoruz
+        return render_template("index.html")
 
     return app
 
