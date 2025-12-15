@@ -21,7 +21,6 @@
 /* DB-specific blocks (ilk yüklemede gizli) */
 .db-oracle{display:none;}
 .db-mssql{display:none;}
-
 /* Password eye icon */
 .password-row{position:relative;}
 .password-row .pass-input{padding-right:42px;}
@@ -36,6 +35,13 @@
   color:#64748b;
 }
 .toggle-eye:hover{color:#0f172a;}
+/* inline warning */
+.inline-warn{
+  margin-top:8px;
+  font-size:13px;
+  color:#b45309;
+  display:none;
+}
 </style>
 
 <div class="form-card">
@@ -45,7 +51,6 @@
     <input type="hidden" id="ds_id" value="{{ item.ds_id }}">
     {% endif %}
 
-    {# DB TYPE EN BAŞTA #}
     <div class="form-row">
       <label>DB Type</label>
       {% set val_db = item.db_type if item else '' %}
@@ -56,7 +61,6 @@
       </select>
     </div>
 
-    {# ORTAK ALANLAR #}
     <div class="form-row">
       <label>Name</label>
       <input name="ds_name" required value="{{ item.ds_name if item }}">
@@ -69,7 +73,10 @@
 
     <div class="form-row">
       <label>Host</label>
-      <input name="host" required value="{{ item.host if item }}">
+      <input id="host" name="host" required value="{{ item.host if item }}">
+      <div id="hostWarn" class="inline-warn">
+        Windows (Kerberos) authentication requires Host to be a hostname/FQDN (e.g., WIN-...LAB.LOCAL). IP address is not supported.
+      </div>
     </div>
 
     <div class="form-row">
@@ -85,17 +92,28 @@
     <div class="form-row password-row">
       <label>Password {{ '(leave blank to keep)' if item }}</label>
       <input id="ds_password" class="pass-input" name="password" type="password">
-      <button type="button" class="toggle-eye" onclick="toggleDsPassword()" aria-label="Show or hide password">
-      </button>
+      <button type="button" class="toggle-eye" onclick="toggleDsPassword()" aria-label="Show or hide password"></button>
     </div>
 
-    {# ==== MSSQL ÖZEL ALANLAR ==== #}
     <div class="form-row db-mssql">
       <label>Auth Mode</label>
       {% set val_auth = item.auth_mode if item else 'sql' %}
-      <select name="auth_mode">
+      <select name="auth_mode" id="auth_mode">
         <option value="sql" {{ 'selected' if val_auth=='sql' }}>SQL Authentication</option>
         <option value="windows" {{ 'selected' if val_auth=='windows' }}>Windows (Domain)</option>
+      </select>
+    </div>
+
+    <div class="form-row db-mssql mssql-windows-only">
+      <label>Domain User</label>
+      {% set val_du = (item.domain_user_id if item and item.domain_user_id is not none else '') %}
+      <select name="domain_user_id" id="domain_user_id">
+        <option value="">-- choose --</option>
+        {% for du in (domain_users or []) %}
+          <option value="{{ du.id }}" {{ 'selected' if (val_du|string) == (du.id|string) }}>
+            {{ du.name }} · {{ du.netbios_name or '-' }}\{{ du.domain_username }}
+          </option>
+        {% endfor %}
       </select>
     </div>
 
@@ -114,7 +132,6 @@
       <input name="database_name" value="{{ item.database_name if item }}">
     </div>
 
-    {# ==== ORACLE ÖZEL ALANLAR ==== #}
     <div class="form-row db-oracle">
       <label>Oracle Service Name</label>
       <input name="oracle_service_name" value="{{ item.oracle_service_name if item }}">
@@ -169,7 +186,11 @@ function toggleDsPassword(){
   input.type = (input.type === 'password') ? 'text' : 'password';
 }
 
-/* DB type seçimine göre alan göster/gizle */
+function isIp(host){
+  host = (host || '').trim();
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+}
+
 function updateDbSpecificRows(){
   const select = document.getElementById('db_type');
   if (!select) return;
@@ -190,12 +211,75 @@ function updateDbSpecificRows(){
   }
 }
 
+function updateMssqlAuthRows(){
+  const auth = document.getElementById('auth_mode');
+  const windowsOnly = document.querySelectorAll('.mssql-windows-only');
+  if (!auth) {
+    windowsOnly.forEach(r => r.style.display = 'none');
+    return;
+  }
+  const mode = (auth.value || 'sql').toLowerCase();
+  if (mode === 'windows') {
+    windowsOnly.forEach(r => r.style.display = 'flex');
+  } else {
+    windowsOnly.forEach(r => r.style.display = 'none');
+  }
+  updateHostWarn();
+}
+
+function updateHostWarn(){
+  const dbType = (document.getElementById('db_type')?.value || '').toLowerCase();
+  const authMode = (document.getElementById('auth_mode')?.value || '').toLowerCase();
+  const host = document.getElementById('host')?.value || '';
+  const warn = document.getElementById('hostWarn');
+
+  const show = (dbType === 'mssql' && authMode === 'windows' && isIp(host));
+  if (warn) warn.style.display = show ? 'block' : 'none';
+}
+
 document.addEventListener('DOMContentLoaded', function(){
   const select = document.getElementById('db_type');
+  const auth = document.getElementById('auth_mode');
+  const host = document.getElementById('host');
+  const form = document.getElementById('dsForm');
+
   if (select) {
-    select.addEventListener('change', updateDbSpecificRows);
-    updateDbSpecificRows(); // edit ekranı için ilk açılışta uygula
+    select.addEventListener('change', function(){
+      updateDbSpecificRows();
+      updateMssqlAuthRows();
+      updateHostWarn();
+    });
+    updateDbSpecificRows();
   }
+
+  if (auth) {
+    auth.addEventListener('change', function(){
+      updateMssqlAuthRows();
+      updateHostWarn();
+    });
+  }
+
+  if (host) {
+    host.addEventListener('input', updateHostWarn);
+  }
+
+  // Client-side submit block
+  if (form) {
+    form.addEventListener('submit', function(e){
+      const dbType = (document.getElementById('db_type')?.value || '').toLowerCase();
+      const authMode = (document.getElementById('auth_mode')?.value || '').toLowerCase();
+      const h = (document.getElementById('host')?.value || '').trim();
+
+      if (dbType === 'mssql' && authMode === 'windows' && isIp(h)) {
+        e.preventDefault();
+        updateHostWarn();
+        alert("Windows (Kerberos) authentication requires Host to be a hostname/FQDN (e.g., WIN-...LAB.LOCAL). IP address is not supported.");
+      }
+    });
+  }
+
+  updateMssqlAuthRows();
+  updateHostWarn();
 });
 </script>
 {% endblock %}

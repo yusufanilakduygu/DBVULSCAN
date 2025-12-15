@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Edit' if mode == 'edit' else 'New' }} Setting · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+.form-card{background:#fff;border:1px solid #e5e9f2;border-radius:12px;max-width:760px;}
+.form-head{padding:12px 14px;border-bottom:1px solid #e5e9f2;font-weight:800;}
+.form-body{padding:14px;}
+.form-row{display:flex;flex-direction:column;margin-bottom:12px;}
+.form-row label{font-weight:600;margin-bottom:6px;}
+.form-row input,.form-row select,.form-row textarea{
+  border:1px solid #e5e9f2;
+  border-radius:8px;
+  padding:10px;
+}
+.form-row textarea{min-height:80px;resize:vertical;}
+.form-help{font-size:12px;color:#64748b;margin-top:4px;}
+.form-actions{display:flex;gap:10px;margin-top:10px;}
+.btn{padding:10px 14px;border-radius:10px;text-decoration:none;display:inline-block;}
+.btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8;}
+.btn-primary:hover{background:#1d4ed8;}
+.btn-muted{background:#fff;border:1px solid #e5e9f2;color:#0f172a;}
+.btn-muted:hover{background:#f1f5f9;}
+</style>
+
+<div class="flex justify-center mt-4">
+  <div class="form-card w-full">
+    <div class="form-head">
+      {{ 'Edit' if mode == 'edit' else 'New' }} Setting
+    </div>
+    <div class="form-body">
+      <form method="post">
+        <div class="form-row">
+          <label for="setting_key">Setting Key</label>
+          <input
+            id="setting_key"
+            name="setting_key"
+            type="text"
+            value="{{ (row.setting_key if row else '') }}"
+            {% if mode == 'edit' %}readonly{% endif %}
+            required
+          >
+          <div class="form-help">
+            Unique identifier. Example: <code>app_version_line</code>, <code>pagination_size</code>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label for="setting_value">Value</label>
+          <textarea id="setting_value" name="setting_value">{{ (row.setting_value if row else '') }}</textarea>
+        </div>
+
+        <div class="form-row">
+          <label for="value_type">Value Type</label>
+          {% set current_type = (row.value_type if row else 'string') or 'string' %}
+          <select name="value_type" id="value_type">
+            <option value="string" {{ 'selected' if current_type=='string' }}>string</option>
+            <option value="int"    {{ 'selected' if current_type=='int' }}>int</option>
+            <option value="bool"   {{ 'selected' if current_type=='bool' }}>bool</option>
+            <option value="json"   {{ 'selected' if current_type=='json' }}>json</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="description">Description</label>
+          <textarea id="description" name="description">{{ (row.description if row else '') }}</textarea>
+          <div class="form-help">
+            Short explanation of what this setting controls.
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">Save</button>
+          <a class="btn btn-muted" href="{{ url_for('settings.list_settings') }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

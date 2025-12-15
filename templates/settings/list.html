@@ -1,0 +1,251 @@
+{% extends "layout.html" %}
+{% block title %}Settings · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+.ds-wrap {
+  background:#fff;
+  border:1px solid #e5e9f2;
+  border-radius:12px;
+  margin-top:10px;
+}
+.ds-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 14px;
+  border-bottom:1px solid #e5e9f2;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.ds-title {
+  font-weight:800;
+  font-size:17px;
+}
+.ds-meta {
+  font-size:13px;
+  color:#64748b;
+}
+
+/* TOP RIGHT SECTION */
+.ds-actions {
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+/* search box */
+.search-box {
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.search-box input {
+  border:1px solid #e5e9f2;
+  border-radius:8px;
+  padding:6px 10px;
+  width:220px;
+}
+
+/* buttons */
+.ds-actions a.btn {
+  display:inline-block;
+  padding:8px 12px;
+  border-radius:8px;
+  text-decoration:none;
+}
+.btn-primary {
+  background:#2563eb;
+  color:#fff;
+  border:1px solid #1d4ed8;
+}
+.btn-primary:hover { background:#1d4ed8; }
+
+.btn-muted {
+  background:#fff;
+  border:1px solid #e5e9f2;
+  color:#0f172a;
+}
+.btn-muted:hover { background:#f1f5f9; }
+
+/* table */
+.ds-table {
+  width:100%;
+  border-collapse:collapse;
+}
+.ds-table th, .ds-table td {
+  padding:10px 12px;
+  border-top:1px solid #eef2f7;
+  text-align:left;
+  vertical-align:middle;
+  font-size:13px;
+}
+.ds-table thead th {
+  background:#f8fafc;
+  font-weight:700;
+  border-top:none;
+}
+.ds-name a {
+  font-weight:600;
+  text-decoration:none;
+  color:#0f172a;
+}
+.ds-name a:hover { text-decoration:underline; }
+
+/* badges */
+.badge {
+  display:inline-block;
+  padding:2px 8px;
+  border:1px solid #e5e9f2;
+  border-radius:999px;
+  background:#fff;
+  font-size:12px;
+}
+
+/* footer */
+.ds-footer {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:8px 14px;
+  border-top:1px solid #e5e9f2;
+  font-size:13px;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+/* pagination */
+.ds-pagination {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.ds-pagination a {
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid #e5e9f2;
+  text-decoration:none;
+  background:#fff;
+  font-size:13px;
+  color:#0f172a;
+}
+.ds-pagination a:hover {
+  background:#f1f5f9;
+}
+.ds-pagination span { color:#64748b; }
+
+/* Responsive adjustments */
+@media (max-width: 980px) {
+  .ds-head {
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  .ds-actions {
+    width:100%;
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  .search-box { width:100%; }
+  .search-box input { width:100%; }
+  .ds-footer {
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}
+</style>
+
+
+<div class="ds-wrap">
+  <!-- HEADER -->
+  <div class="ds-head">
+    <div>
+      <div class="ds-title">Settings</div>
+      <div class="ds-meta">
+        Application-level configuration key/value list
+      </div>
+    </div>
+
+    <div class="ds-actions">
+      <form class="search-box" method="get" action="{{ url_for('settings.list_settings') }}">
+        <input
+          type="text"
+          name="search"
+          placeholder="Search key/value..."
+          value="{{ search or '' }}"
+        >
+        <button class="btn-muted" type="submit">Search</button>
+        <a class="btn-muted" href="{{ url_for('settings.list_settings', clear=1) }}">Clear</a>
+      </form>
+
+      <a class="btn-primary btn" href="{{ url_for('settings.create_setting') }}">New Setting</a>
+    </div>
+  </div>
+
+  <!-- PAGE INFO -->
+  <div style="padding:10px 14px; font-size:13px; color:#64748b;">
+    Page {{ page }} / {{ pages }} · {{ total }} records (max {{ per_page }} per page)
+  </div>
+
+  <!-- TABLE -->
+  <div class="overflow-x-auto">
+    <table class="ds-table">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Value</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in items %}
+        <tr>
+          <td class="ds-name">
+            <a href="{{ url_for('settings.edit_setting', setting_key=s.setting_key) }}">
+              {{ s.setting_key }}
+            </a>
+          </td>
+          <td>
+            {% set val = s.setting_value or '' %}
+            {{ val[:80] }}{% if val|length > 80 %}…{% endif %}
+          </td>
+          <td><span class="badge">{{ s.value_type or 'string' }}</span></td>
+          <td>{{ s.description or '' }}</td>
+        </tr>
+        {% endfor %}
+
+        {% if items|length == 0 %}
+        <tr>
+          <td colspan="4" style="padding:14px; color:#64748b; font-size:13px;">
+            No settings found.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="ds-footer">
+    <div>
+      Showing page {{ page }} of {{ pages }} — total {{ total }} settings, {{ per_page }} per page.
+    </div>
+
+    <div class="ds-pagination">
+      {% if page > 1 %}
+        <a href="{{ url_for('settings.list_settings', page=1, search=search) }}">&laquo; First</a>
+        <a href="{{ url_for('settings.list_settings', page=page-1, search=search) }}">&lsaquo; Prev</a>
+      {% endif %}
+
+      <span>Page {{ page }} / {{ pages }}</span>
+
+      {% if page < pages %}
+        <a href="{{ url_for('settings.list_settings', page=page+1, search=search) }}">Next &rsaquo;</a>
+        <a href="{{ url_for('settings.list_settings', page=pages, search=search) }}">Last &raquo;</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

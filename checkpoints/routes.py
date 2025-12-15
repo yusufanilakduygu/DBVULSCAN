@@ -1,9 +1,39 @@
 from flask import render_template, request, redirect, url_for, flash, session
 from . import checkpoints_bp
 from db import get_db
+import subprocess
+import os
+import re
 
 
-# ---------- Helper functions ---------- #
+# =========================================================
+# ------------------ KERBEROS HELPERS ----------------------
+# =========================================================
+
+def _is_ip(host: str) -> bool:
+    return bool(re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", (host or "").strip()))
+
+def _kdestroy():
+    subprocess.run(["kdestroy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def _kinit(principal: str, password: str):
+    _kdestroy()
+    p = subprocess.run(
+        ["kinit", principal],
+        input=(password + "\n").encode(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=10,
+        env=os.environ.copy(),
+    )
+    if p.returncode != 0:
+        err = (p.stderr or b"").decode(errors="ignore")
+        raise RuntimeError(f"kinit failed: {err}")
+
+
+# =========================================================
+# ------------------ DB CONNECTIONS ------------------------
+# =========================================================
 
 def get_oracle_connection(ds):
     """
@@ -35,48 +65,87 @@ def get_oracle_connection(ds):
 def get_mssql_connection(ds):
     """
     MSSQL connection – pyodbc + ODBC Driver 18 ile.
+    Supports:
+      - SQL auth: auth_mode == 'sql'
+      - Windows/Kerberos: auth_mode == 'windows'  (uses kinit + AD Integrated)
     """
     try:
         import pyodbc
     except ImportError:
         raise RuntimeError("pyodbc module is not installed. Please install it in the virtualenv.")
 
-    host = ds.get("host")
+    host = (ds.get("host") or "").strip()
     port = int(ds.get("port") or 1433)
-    auth_mode = ds.get("auth_mode") or "sql"
+    auth_mode = (ds.get("auth_mode") or "sql").strip().lower()
     username = ds.get("username")
     password = ds.get("password")
 
-    # DB alanını düzgün normalize edelim
     database_raw = ds.get("database_name")
     database = (database_raw or "").strip()
     if database.lower() == "none":
         database = ""
 
     driver = "{ODBC Driver 18 for SQL Server}"
+    db_part = f"DATABASE={database};" if database else ""
 
-    if auth_mode == "sql":
-        db_part = f"DATABASE={database};" if database else ""
+    # ---------------- WINDOWS (KERBEROS) AUTH ----------------
+    if auth_mode == "windows":
+        # Kerberos için FQDN lazım (IP ile SPN/kerberos genelde patlar)
+        if _is_ip(host):
+            raise RuntimeError("Windows (Kerberos) authentication requires Host to be FQDN, not IP.")
+
+        domain_user_id = ds.get("domain_user_id")
+        if not domain_user_id:
+            raise RuntimeError("Windows authentication requires domain_user_id in datasource.")
+
+        # domain user bilgilerini çek
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute(
+            """
+            SELECT domain_username, domain_fqdn, netbios_name, password_enc
+            FROM domain_users
+            WHERE id = %s AND is_active = 1
+            """,
+            (domain_user_id,),
+        )
+        du = cursor.fetchone()
+        if not du:
+            raise RuntimeError("Domain user not found or inactive.")
+
+        # password_enc senin tabloda nasıl tutuluyorsa ona göre:
+        # önceki eklediğimiz kodda .decode('utf-8') kullanmıştık, onu koruyorum.
+        # Eğer burada bytes değilse zaten str döner.
+        pw = du.get("password_enc")
+        if isinstance(pw, (bytes, bytearray)):
+            pw = pw.decode("utf-8")
+
+        principal = f"{du['domain_username']}@{du['domain_fqdn'].upper()}"
+        _kinit(principal, pw)
+
         conn_str = (
             f"DRIVER={driver};"
             f"SERVER={host},{port};"
             f"{db_part}"
-            f"UID={username};PWD={password};"
-            "Encrypt=no;"
-            "TrustServerCertificate=yes;"
+            "Encrypt=Yes;"
+            "TrustServerCertificate=Yes;"
+            "Authentication=ActiveDirectoryIntegrated;"
         )
-    else:
-        db_part = f"DATABASE={database};" if database else ""
-        conn_str = (
-            f"DRIVER={driver};"
-            f"SERVER={host},{port};"
-            f"{db_part}"
-            "Trusted_Connection=yes;"
-            "Encrypt=no;"
-            "TrustServerCertificate=yes;"
-        )
+        return pyodbc.connect(conn_str, timeout=5)
 
-    return pyodbc.connect(conn_str)
+    # ---------------- SQL AUTH ----------------
+    if not password:
+        raise RuntimeError("SQL authentication requires password.")
+
+    conn_str = (
+        f"DRIVER={driver};"
+        f"SERVER={host},{port};"
+        f"{db_part}"
+        f"UID={username};PWD={password};"
+        "Encrypt=Yes;"
+        "TrustServerCertificate=Yes;"
+    )
+    return pyodbc.connect(conn_str, timeout=5)
 
 
 def evaluate_condition(result_value, condition_text):
@@ -96,8 +165,11 @@ def evaluate_condition(result_value, condition_text):
     return (value, expr), None
 
 
-# ---------- LIST ---------- #
-@checkpoints_bp.route('/')
+# =========================================================
+# -------------------------- LIST --------------------------
+# =========================================================
+
+@checkpoints_bp.route("/", methods=["GET"])
 def list_checkpoints():
     db = get_db()
     cursor = db.cursor()
@@ -106,7 +178,7 @@ def list_checkpoints():
     q_param = request.args.get('q')
     if q_param is not None:
         search = q_param.strip()
-        session['cp_search'] = search  # boş da olsa güncel değeri yaz
+        session['cp_search'] = search
     else:
         search = session.get('cp_search', '').strip()
 
@@ -115,13 +187,11 @@ def list_checkpoints():
         page = int(request.args.get('page', 1))
     except (TypeError, ValueError):
         page = 1
-
     if page < 1:
         page = 1
 
-    per_page = 15  # her sayfada kaç checkpoint gösterileceği
+    per_page = 15
 
-    # --- Dinamik WHERE ---
     where_clause = ""
     params_count = []
 
@@ -135,11 +205,9 @@ def list_checkpoints():
         like = f"%{search}%"
         params_count = [like, like, like]
 
-    # --- Toplam kayıt sayısı ---
     cursor.execute(f"SELECT COUNT(*) AS cnt FROM checkpoints {where_clause}", params_count)
     total_records = cursor.fetchone()["cnt"]
 
-    # --- Sayfa / offset hesapla ---
     if total_records == 0:
         total_pages = 1
         page = 1
@@ -150,7 +218,6 @@ def list_checkpoints():
             page = total_pages
         offset = (page - 1) * per_page
 
-    # --- İlgili sayfadaki kayıtlar ---
     params_rows = params_count + [per_page, offset]
 
     cursor.execute(
@@ -170,7 +237,6 @@ def list_checkpoints():
 
     rows = cursor.fetchall()
 
-    # Gösterilen satır aralığı
     if total_records == 0:
         start_record = 0
         end_record = 0
@@ -191,7 +257,9 @@ def list_checkpoints():
     )
 
 
-# ---------- NEW ---------- #
+# =========================================================
+# --------------------------- NEW --------------------------
+# =========================================================
 
 @checkpoints_bp.route('/new', methods=['GET', 'POST'])
 def new_checkpoint():
@@ -253,8 +321,9 @@ def new_checkpoint():
     return render_template('checkpoints/form.html', mode='new', checkpoint=checkpoint)
 
 
-
-# ---------- EDIT ---------- #
+# =========================================================
+# --------------------------- EDIT -------------------------
+# =========================================================
 
 @checkpoints_bp.route('/<int:checkpoint_id>/edit', methods=['GET', 'POST'])
 def edit_checkpoint(checkpoint_id):
@@ -324,10 +393,9 @@ def edit_checkpoint(checkpoint_id):
     return render_template('checkpoints/form.html', mode='edit', checkpoint=row)
 
 
-
-# =====================================================================
-# -------------------------- RUN TEST --------------------------------
-# =====================================================================
+# =========================================================
+# -------------------------- RUN TEST ----------------------
+# =========================================================
 
 @checkpoints_bp.route('/<int:checkpoint_id>/run-test', methods=['GET', 'POST'])
 def run_checkpoint_test(checkpoint_id):
@@ -355,6 +423,7 @@ def run_checkpoint_test(checkpoint_id):
             ds_id AS id, ds_name AS name,
             db_type, host, port,
             auth_mode, domain,
+            domain_user_id,
             username, password,
             database_name,
             oracle_service_name, oracle_sid
@@ -380,7 +449,6 @@ def run_checkpoint_test(checkpoint_id):
             if not selected_ds:
                 flash("Datasource not found.", "danger")
             else:
-
                 # ---------- CONNECT ----------
                 try:
                     if checkpoint["db_type"] == "oracle":
@@ -478,10 +546,9 @@ def run_checkpoint_test(checkpoint_id):
     )
 
 
-
-# =====================================================================
-# ----------------------- RUN SQL DETAIL ------------------------------
-# =====================================================================
+# =========================================================
+# ----------------------- RUN SQL DETAIL -------------------
+# =========================================================
 
 @checkpoints_bp.route('/<int:checkpoint_id>/run-sql-detail', methods=['GET', 'POST'])
 def run_checkpoint_detail(checkpoint_id):
@@ -508,6 +575,7 @@ def run_checkpoint_detail(checkpoint_id):
             ds_id AS id, ds_name AS name,
             db_type, host, port,
             auth_mode, domain,
+            domain_user_id,
             username, password,
             database_name,
             oracle_service_name, oracle_sid
@@ -613,12 +681,15 @@ def run_checkpoint_detail(checkpoint_id):
     )
 
 
+# =========================================================
+# -------------------------- DELETE ------------------------
+# =========================================================
+
 @checkpoints_bp.route('/<int:checkpoint_id>/delete', methods=['POST'])
 def delete_checkpoint(checkpoint_id):
     db = get_db()
     cursor = db.cursor()
 
-    # Kayıt gerçekten var mı diye kontrol etmek istersen:
     cursor.execute("""
         SELECT Id, Name
         FROM checkpoints
@@ -630,7 +701,6 @@ def delete_checkpoint(checkpoint_id):
         flash('Checkpoint bulunamadı.', 'danger')
         return redirect(url_for('checkpoints.list_checkpoints'))
 
-    # Silme işlemi
     cursor.execute("DELETE FROM checkpoints WHERE Id = %s", (checkpoint_id,))
     db.commit()
 

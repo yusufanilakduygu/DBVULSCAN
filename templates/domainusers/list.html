@@ -1,0 +1,191 @@
+{% extends "layout.html" %}
+{% block title %}Domain Users · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+.ds-wrap{background:#fff;border:1px solid #e5e9f2;border-radius:12px;margin-top:10px;}
+.ds-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 14px;
+  border-bottom:1px solid #e5e9f2;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.ds-title{font-weight:800;font-size:17px;}
+.ds-meta{font-size:13px;color:#64748b;margin-top:2px;}
+
+.search-box{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.search-box input{
+  border:1px solid #e5e9f2;
+  border-radius:8px;
+  padding:7px 10px;
+  width:240px;
+}
+
+.btn{padding:8px 12px;border-radius:8px;text-decoration:none;cursor:pointer;font-size:14px;}
+.btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8;}
+.btn-primary:hover{background:#1d4ed8;}
+.btn-muted{background:#fff;border:1px solid #e5e9f2;color:#0f172a;}
+.btn-muted:hover{background:#f1f5f9;}
+
+.badge{display:inline-block;padding:2px 8px;border:1px solid #e5e9f2;border-radius:999px;background:#fff;font-size:12px;}
+
+.ds-table{width:100%;border-collapse:collapse;}
+.ds-table th,.ds-table td{
+  padding:10px 12px;
+  border-top:1px solid #eef2f7;
+  text-align:left;
+  vertical-align:middle;
+}
+.ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;}
+
+.ds-name a{font-weight:600;text-decoration:none;color:#0f172a;cursor:pointer;}
+.ds-name a:hover{text-decoration:underline;color:#1d4ed8;}
+
+.ds-footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 14px;
+  border-top:1px solid #e5e9f2;
+  font-size:13px;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.ds-pagination{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.ds-pagination a{
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid #e5e9f2;
+  text-decoration:none;
+  background:#fff;
+  font-size:13px;
+  color:#0f172a;
+}
+.ds-pagination a:hover{background:#f1f5f9;}
+.ds-pagination span{color:#64748b;}
+
+@media (max-width: 980px){
+  .ds-head{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  .search-box{width:100%;}
+  .search-box input{width:100%;}
+  .ds-footer{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}
+</style>
+
+<div class="ds-wrap">
+  <!-- HEADER -->
+  <div class="ds-head">
+    <!-- Sol: başlık + meta -->
+    <div>
+      <div class="ds-title">Domain Users</div>
+      <div class="ds-meta">
+        Page {{ page }} / {{ pages }} · {{ total }} records (max 10 per page)
+      </div>
+    </div>
+
+    <!-- Orta: Search -->
+    <form method="get"
+          class="search-box"
+          action="{{ url_for('domainusers.list_domain_users') }}">
+      <input type="text"
+             name="search"
+             id="searchInput"
+             placeholder="Search domain users..."
+             value="{{ search or '' }}">
+      <button type="submit" class="btn btn-muted">Search</button>
+      {% if search %}
+        <a href="{{ url_for('domainusers.list_domain_users', clear=1) }}" class="btn btn-muted">Clear</a>
+      {% endif %}
+    </form>
+
+    <!-- Sağ: New Domain User -->
+    <div>
+      {% if current_role != 'viewer' %}
+        <a href="{{ url_for('domainusers.create_domain_user') }}" class="btn btn-primary">New Domain User</a>
+      {% else %}
+        <span class="badge">Viewer mode</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="overflow-x-auto">
+    <table class="ds-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Domain Username</th>
+          <th>Domain FQDN</th>
+          <th>NetBIOS Name</th>
+          <th>Active?</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for du in items %}
+        <tr>
+          <td class="ds-name">
+            <a href="{{ url_for('domainusers.edit_domain_user', domain_user_id=du.id) }}">
+              {{ du.name }}
+            </a>
+          </td>
+          <td>{{ du.domain_username }}</td>
+          <td>{{ du.domain_fqdn }}</td>
+          <td>{{ du.netbios_name or '-' }}</td>
+          <td>
+            {% if du.is_active %}
+              <span class="badge" style="background:#f0fdf4;border-color:#bbf7d0;">Active</span>
+            {% else %}
+              <span class="badge" style="background:#f9fafb;border-color:#e5e7eb;">Inactive</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if items|length == 0 %}
+        <tr>
+          <td colspan="5" style="padding:14px; color:#64748b; font-size:13px;">
+            No domain users found.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="ds-footer">
+    <div>
+      Showing
+      {% if total == 0 %}
+        0
+      {% else %}
+        {{ (page-1)*10 + 1 }}–{{ (page-1)*10 + items|length }}
+      {% endif %}
+      of {{ total }} records
+    </div>
+    <div class="ds-pagination">
+      {% if page > 1 %}
+        <a href="{{ url_for('domainusers.list_domain_users', page=1, search=search) }}">&laquo; First</a>
+        <a href="{{ url_for('domainusers.list_domain_users', page=page-1, search=search) }}">&lsaquo; Prev</a>
+      {% endif %}
+      <span>Page {{ page }} / {{ pages }}</span>
+      {% if page < pages %}
+        <a href="{{ url_for('domainusers.list_domain_users', page=page+1, search=search) }}">Next &rsaquo;</a>
+        <a href="{{ url_for('domainusers.list_domain_users', page=pages, search=search) }}">Last &raquo;</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

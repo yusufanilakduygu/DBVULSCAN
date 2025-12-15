@@ -1,0 +1,96 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Edit' if mode == 'edit' else 'New' }} Domain User · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+.form-card{background:#fff;border:1px solid #e5e9f2;border-radius:12px;max-width:760px;}
+.form-head{padding:12px 14px;border-bottom:1px solid #e5e9f2;font-weight:800;}
+.form-body{padding:14px;}
+.form-row{display:flex;flex-direction:column;margin-bottom:12px;}
+.form-row label{font-weight:600;margin-bottom:6px;}
+.form-row input,.form-row select{border:1px solid #e5e9f2;border-radius:8px;padding:10px;}
+.form-help{font-size:12px;color:#64748b;margin-top:4px;}
+.form-actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}
+.btn{padding:10px 14px;border-radius:10px;text-decoration:none;display:inline-block;cursor:pointer;font-size:14px;}
+.btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8;}
+.btn-primary:hover{background:#1d4ed8;}
+.btn-muted{background:#fff;border:1px solid #e5e9f2;color:#0f172a;}
+.btn-muted:hover{background:#f1f5f9;}
+</style>
+
+<div class="form-card">
+  <div class="form-head">
+    {{ 'Edit' if mode == 'edit' else 'New' }} Domain User
+  </div>
+  <div class="form-body">
+    {% if mode == 'edit' and row %}
+      <form method="post" action="{{ url_for('domainusers.edit_domain_user', domain_user_id=row.id) }}">
+    {% else %}
+      <form method="post" action="{{ url_for('domainusers.create_domain_user') }}">
+    {% endif %}
+
+      {% set val_name = row.name if row else '' %}
+      {% set val_domain_username = row.domain_username if row else '' %}
+      {% set val_domain_fqdn = row.domain_fqdn if row else '' %}
+      {% set val_netbios_name = row.netbios_name if row else '' %}
+      {% set val_is_active = row.is_active if row else 1 %}
+
+      <div class="form-row">
+        <label for="name">Name *</label>
+        <input type="text" name="name" id="name" value="{{ val_name }}" required>
+        <div class="form-help">Display name for this domain user (e.g. "Prod SQL Service Account").</div>
+      </div>
+
+      <div class="form-row">
+        <label for="domain_username">Domain Username *</label>
+        <input type="text" name="domain_username" id="domain_username" value="{{ val_domain_username }}" required>
+        <div class="form-help">Account name without domain prefix (e.g. dbvulscan_svc).</div>
+      </div>
+
+      <div class="form-row">
+        <label for="domain_fqdn">Domain FQDN *</label>
+        <input type="text" name="domain_fqdn" id="domain_fqdn" value="{{ val_domain_fqdn }}" required>
+        <div class="form-help">Fully-qualified domain name (e.g. LAB.LOCAL).</div>
+      </div>
+
+      <div class="form-row">
+        <label for="netbios_name">NetBIOS Name</label>
+        <input type="text" name="netbios_name" id="netbios_name" value="{{ val_netbios_name }}">
+        <div class="form-help">Short domain name used in logins (e.g. LAB). Optional.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="password">Password {% if mode == 'edit' %}(leave blank to keep current){% else %}*{% endif %}</label>
+        <input type="password" name="password" id="password" autocomplete="new-password" {% if mode != 'edit' %}required{% endif %}>
+        <div class="form-help">
+          {% if mode == 'edit' %}
+            Enter a new password only if you want to change it or to test with kinit.
+          {% else %}
+            Password for this domain account (will be stored in the repository).
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="is_active">Status</label>
+        <select name="is_active" id="is_active">
+          <option value="1" {% if val_is_active %}selected{% endif %}>Active</option>
+          <option value="0" {% if not val_is_active %}selected{% endif %}>Inactive</option>
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" name="action" value="save">Save</button>
+
+        {% if mode == 'edit' %}
+        <button class="btn btn-muted" type="submit" name="action" value="test">
+          Test with kinit
+        </button>
+        {% endif %}
+
+        <a class="btn btn-muted" href="{{ url_for('domainusers.list_domain_users') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
