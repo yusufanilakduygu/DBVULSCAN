@@ -165,8 +165,8 @@
       <div class="card">
         <a class="brand" href="{{ url_for('home') }}">DB Vulnerability Scan</a>
         <div class="userbox">
-          User: {{ current_user }}<br/>
-          Role: {{ current_role }}
+          User: {{ session.get('username','') }}<br/>
+          Role: {{ session.get('role','viewer') }}
         </div>
       </div>
 
@@ -220,7 +220,7 @@
         </div>
 
         <!-- Configuration (admin only) -->
-        {% if current_role == 'admin' %}
+        {% if session.get('role') == 'admin' %}
         <div class="acc-group">
           <div class="acc-title" data-acc="cfg">Configuration</div>
           <div class="acc-panel" id="acc-cfg">

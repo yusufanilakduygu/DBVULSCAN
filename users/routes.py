@@ -2,6 +2,7 @@
 from flask import render_template, request, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash
 import pymysql
+import datetime
 from db import get_db
 from security import login_required, admin_required
 from . import users_bp
@@ -28,17 +29,16 @@ def list_users():
             session["users_search"] = search
             page = 1
         else:
-            search = session.get("users_search", "")
+            search = (session.get("users_search") or "").strip()
 
         if raw_page is not None:
-            page = raw_page
+            page = max(raw_page, 1)
+            session["users_page"] = page
         else:
-            page = session.get("users_page", 1)
-
-    if page is None or page < 1:
-        page = 1
+            page = max(int(session.get("users_page") or 1), 1)
 
     per_page = 10
+    offset = (page - 1) * per_page
 
     base_sql = "FROM users WHERE 1=1"
     params = []
@@ -52,98 +52,106 @@ def list_users():
             OR  email     LIKE %s
             OR  role      LIKE %s
             OR  status    LIKE %s
+            OR  user_type  LIKE %s
+            OR  principal  LIKE %s
           )
         """
-        params.extend([like, like, like, like, like])
+        params.extend([like, like, like, like, like, like, like])
 
     count_sql = "SELECT COUNT(*) AS total " + base_sql
 
-    with get_db().cursor() as cur:
-        # toplam kayıt
-        cur.execute(count_sql, params)
-        row_cnt = cur.fetchone()
-        total = row_cnt["total"] if row_cnt else 0
-
-        pages = (total + per_page - 1) // per_page if total else 1
-        if page > pages:
-            page = pages
-
-        session["users_page"] = page
-
-        offset = (page - 1) * per_page
-
-        data_sql = """
-            SELECT
-                user_id,
-                username,
-                full_name,
-                email,
-                role,
-                status,
-                last_login,
-                passwd_change_date
+    data_sql = """
+        SELECT
+              user_id,
+              username,
+              user_type,
+              principal,
+              full_name,
+              email,
+              role,
+              status,
+              last_login,
+              passwd_change_date
         """ + base_sql + """
             ORDER BY user_id DESC
             LIMIT %s OFFSET %s
         """
 
-        params_data = list(params)
-        params_data.extend([per_page, offset])
+    params_data = list(params)
+    params_data.extend([per_page, offset])
+
+    with get_db().cursor() as cur:
+        cur.execute(count_sql, params)
+        row_cnt = cur.fetchone()
+        total = row_cnt["total"] if row_cnt else 0
 
         cur.execute(data_sql, params_data)
-        rows = cur.fetchall()
+        users = cur.fetchall()
 
-    # Global templates: templates/users/list.html
+    total_pages = max((total + per_page - 1) // per_page, 1)
+
     return render_template(
         "users/list.html",
-        users=rows,
+        users=users,
+        search=search,
         page=page,
-        pages=pages,
         per_page=per_page,
         total=total,
-        search=search,
+        total_pages=total_pages,
+        current_role=session.get("role", "viewer"),
     )
 
 
 # CREATE
-@users_bp.route("/create", methods=["GET", "POST"])
+@users_bp.route("/new", methods=["GET", "POST"])
 @login_required
 @admin_required
 def create_user():
     if request.method == "POST":
         f = request.form
         username = (f.get("username") or "").strip()
+        user_type = f.get("user_type", "local")
+        principal = (f.get("principal") or "").strip() or None
         password = (f.get("password") or "").strip()
         full_name = (f.get("full_name") or "").strip() or None
         email = (f.get("email") or "").strip() or None
         role = f.get("role", "viewer")
         status = f.get("status", "active")
 
-        if not username or not password:
-            flash("Username and Password are required.", "warning")
+        if not username:
+            flash("Username is required.", "warning")
             return redirect(url_for("users.create_user"))
 
-        pwd_hash = generate_password_hash(password)
+        if user_type == "AD":
+            if not principal:
+                flash("Principal is required for AD users.", "warning")
+                return redirect(url_for("users.create_user"))
+            pwd_hash = None
+        else:
+            if not password:
+                flash("Password is required for local users.", "warning")
+                return redirect(url_for("users.create_user"))
+            pwd_hash = generate_password_hash(password)
+            principal = None
 
         try:
             with get_db().cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO users
-                        (username, password_hash, full_name, email, role, status, passwd_change_date)
+                        (username, user_type, principal, password_hash, full_name, email, role, status, passwd_change_date)
                     VALUES
-                        (%s, %s, %s, %s, %s, %s, NOW())
+                        (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (username, pwd_hash, full_name, email, role, status),
+                    (username, user_type, principal, pwd_hash, full_name, email, role, status,
+                     (datetime.datetime.now() if user_type != 'AD' else None)),
                 )
             flash("User created.", "success")
             return redirect(url_for("users.list_users"))
         except pymysql.err.IntegrityError as e:
-            # UNIQUE(username) vb. hatalar
             flash(f"Cannot create user: {str(e)}", "danger")
             return redirect(url_for("users.create_user"))
 
-    # Global templates: templates/users/form.html
     return render_template("users/form.html", mode="create", row=None)
 
 
@@ -162,41 +170,75 @@ def edit_user(user_id: int):
 
     if request.method == "POST":
         f = request.form
+        user_type = f.get("user_type", row.get("user_type") or "local")
+        principal = (f.get("principal") or "").strip() or None
         full_name = (f.get("full_name") or "").strip() or None
         email = (f.get("email") or "").strip() or None
         role = f.get("role", row["role"])
         status = f.get("status", row["status"])
         new_password = (f.get("password") or "").strip()
 
+        if user_type == "AD" and not principal:
+            flash("Principal is required for AD users.", "warning")
+            return redirect(url_for("users.edit_user", user_id=user_id))
+
+        if user_type != "AD":
+            principal = None
+
+        if user_type != "AD" and (row.get("user_type") == "AD" or not row.get("password_hash")) and not new_password:
+            flash("Password is required when switching to local user.", "warning")
+            return redirect(url_for("users.edit_user", user_id=user_id))
+
         try:
             with get_db().cursor() as cur:
-                if new_password:
-                    pwd_hash = generate_password_hash(new_password)
+                if user_type == "AD":
                     cur.execute(
                         """
                         UPDATE users
-                           SET full_name=%s,
+                           SET user_type=%s,
+                               principal=%s,
+                               full_name=%s,
                                email=%s,
                                role=%s,
                                status=%s,
-                               password_hash=%s,
-                               passwd_change_date=NOW()
+                               password_hash=NULL
                          WHERE user_id=%s
                         """,
-                        (full_name, email, role, status, pwd_hash, user_id),
+                        (user_type, principal, full_name, email, role, status, user_id),
                     )
                 else:
-                    cur.execute(
-                        """
-                        UPDATE users
-                           SET full_name=%s,
-                               email=%s,
-                               role=%s,
-                               status=%s
-                         WHERE user_id=%s
-                        """,
-                        (full_name, email, role, status, user_id),
-                    )
+                    if new_password:
+                        pwd_hash = generate_password_hash(new_password)
+                        cur.execute(
+                            """
+                            UPDATE users
+                               SET user_type=%s,
+                                   principal=NULL,
+                                   full_name=%s,
+                                   email=%s,
+                                   role=%s,
+                                   status=%s,
+                                   password_hash=%s,
+                                   passwd_change_date=NOW()
+                             WHERE user_id=%s
+                            """,
+                            (user_type, full_name, email, role, status, pwd_hash, user_id),
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            UPDATE users
+                               SET user_type=%s,
+                                   principal=NULL,
+                                   full_name=%s,
+                                   email=%s,
+                                   role=%s,
+                                   status=%s
+                             WHERE user_id=%s
+                            """,
+                            (user_type, full_name, email, role, status, user_id),
+                        )
+
             flash("User updated.", "success")
             return redirect(url_for("users.list_users"))
         except pymysql.MySQLError as e:

@@ -9,36 +9,65 @@
 .form-row{display:flex;flex-direction:column;margin-bottom:12px}
 .form-row label{font-weight:600;margin-bottom:6px}
 .form-row input,.form-row select{border:1px solid #e5e9f2;border-radius:8px;padding:10px}
+.help{font-size:12px;color:#64748b;margin-top:6px}
 .form-actions{display:flex;gap:10px;margin-top:10px}
 .btn{padding:10px 14px;border-radius:10px;text-decoration:none;display:inline-block}
 .btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8}
 .btn-primary:hover{background:#1d4ed8}
 .btn-muted{background:#fff;border:1px solid #e5e9f2;color:#0f172a}
-.help{color:#64748b;font-size:13px;margin-top:8px}
+.btn-muted:hover{background:#f1f5f9}
 </style>
 
 <div class="form-card">
   <div class="form-head">{{ 'Edit' if row else 'New' }} User</div>
-
-  <form method="post" class="form-body">
-
-    {% if row %}
-      <input type="hidden" name="user_id" value="{{ row.user_id }}">
-    {% endif %}
-
-    <!-- Alanlar alt alta, datasources formatında -->
+  <form class="form-body" method="post">
     <div class="form-row">
       <label>Username *</label>
-      <input name="username" required value="{{ row.username if row }}" {{ 'readonly' if row }}>
+      <input name="username" value="{{ row.username if row }}" {{ 'readonly' if row }}>
     </div>
 
     <div class="form-row">
-      <label>Password {{ '(leave blank to keep)' if row else '*' }}</label>
-      <input name="password" type="password" {{ 'required' if not row }}>
-      {% if row %}
-        <div class="help">Şifreyi değiştirmek istemiyorsan boş bırak.</div>
-      {% endif %}
+      <label>User Type *</label>
+      {% set val_user_type = (row.user_type if row and row.user_type else 'local') %}
+      <select name="user_type" id="user_type">
+        <option value="local" {{ 'selected' if val_user_type=='local' }}>Local</option>
+        <option value="AD"    {{ 'selected' if val_user_type=='AD' }}>AD</option>
+      </select>
+      <div class="help">Local users authenticate with stored password hash. AD users authenticate via Kerberos (kinit) at login time.</div>
     </div>
+
+    <div class="form-row" id="principal_row">
+      <label>Principal (Kerberos) *</label>
+      <input name="principal" placeholder="domain_user1@LAB.LOCAL" value="{{ row.principal if row and row.principal }}">
+      <div class="help">Used for kinit during login (example: domain_user1@LAB.LOCAL).</div>
+    </div>
+
+    <div class="form-row" id="password_row">
+      <label>Password {{ '(leave blank to keep)' if row else '*' }}</label>
+      <input name="password" type="password" autocomplete="new-password">
+      <div class="help">{{ 'Leave blank to keep current password.' if row else 'Required for local users.' }}</div>
+    </div>
+
+    <script>
+      function toggleUserTypeFields() {
+        const ut = document.getElementById('user_type');
+        const principalRow = document.getElementById('principal_row');
+        const passwordRow = document.getElementById('password_row');
+        if (!ut || !principalRow || !passwordRow) return;
+        if (ut.value === 'AD') {
+          principalRow.style.display = '';
+          passwordRow.style.display = 'none';
+        } else {
+          principalRow.style.display = 'none';
+          passwordRow.style.display = '';
+        }
+      }
+      document.addEventListener('DOMContentLoaded', function () {
+        const ut = document.getElementById('user_type');
+        if (ut) ut.addEventListener('change', toggleUserTypeFields);
+        toggleUserTypeFields();
+      });
+    </script>
 
     <div class="form-row">
       <label>Full Name</label>
@@ -52,17 +81,17 @@
 
     <div class="form-row">
       <label>Role</label>
-      {% set val_role = row.role if row else 'viewer' %}
-      <select name="role" required>
-        <option value="admin"   {{ 'selected' if val_role=='admin' }}>Admin</option>
-        <option value="analyst" {{ 'selected' if val_role=='analyst' }}>Analyst</option>
-        <option value="viewer"  {{ 'selected' if val_role=='viewer' }}>Viewer</option>
+      {% set val_role = (row.role if row else 'viewer') %}
+      <select name="role">
+        <option value="admin"   {{ 'selected' if val_role=='admin' }}>admin</option>
+        <option value="analyst" {{ 'selected' if val_role=='analyst' }}>analyst</option>
+        <option value="viewer"  {{ 'selected' if val_role=='viewer' }}>viewer</option>
       </select>
     </div>
 
     <div class="form-row">
       <label>Status</label>
-      {% set val_status = row.status if row else 'active' %}
+      {% set val_status = (row.status if row else 'active') %}
       <select name="status">
         <option value="active"   {{ 'selected' if val_status=='active' }}>Active</option>
         <option value="inactive" {{ 'selected' if val_status=='inactive' }}>Inactive</option>

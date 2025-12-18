@@ -120,11 +120,12 @@ textarea {
 
             <div class="form-col">
                 <label>Severity</label>
+                {% set cur_sev = (checkpoint.severity if checkpoint and checkpoint.severity is defined else "major") %}
+                {% set cur_sev = (cur_sev or "major")|lower %}
                 <select name="severity">
-                    <option value="low" {% if checkpoint.severity == 'low' %}selected{% endif %}>Low</option>
-                    <option value="medium" {% if checkpoint.severity == 'medium' %}selected{% endif %}>Medium</option>
-                    <option value="high" {% if checkpoint.severity == 'high' %}selected{% endif %}>High</option>
-                    <option value="critical" {% if checkpoint.severity == 'critical' %}selected{% endif %}>Critical</option>
+                    <option value="minor" {% if cur_sev == 'minor' %}selected{% endif %}>MINOR</option>
+                    <option value="major" {% if cur_sev == 'major' %}selected{% endif %}>MAJOR</option>
+                    <option value="critical" {% if cur_sev == 'critical' %}selected{% endif %}>CRITICAL</option>
                 </select>
             </div>
         </div>

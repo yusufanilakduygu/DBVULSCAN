@@ -266,7 +266,13 @@ def new_checkpoint():
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         db_type = request.form.get('db_type', '').strip()
-        severity = request.form.get('severity', '').strip() or 'medium'
+        db_type = db_type.lower()
+        if db_type not in {'oracle','mssql'}:
+            db_type = 'oracle'
+        severity = (request.form.get('severity', '') or '').strip() or 'major'
+        severity = severity.lower()
+        if severity not in {'minor','major','critical'}:
+            severity = 'major'
         description = request.form.get('description')
         pre_sql_test = request.form.get('pre_sql_test')
         sql_test = request.form.get('sql_test')
@@ -307,7 +313,7 @@ def new_checkpoint():
     checkpoint = {
         'name': '',
         'db_type': 'oracle',
-        'severity': 'medium',
+        'severity': 'major',
         'description': '',
         'pre_sql_test': '',
         'sql_test': '',
@@ -333,7 +339,13 @@ def edit_checkpoint(checkpoint_id):
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         db_type = request.form.get('db_type', '').strip()
-        severity = request.form.get('severity', '').strip() or 'medium'
+        db_type = db_type.lower()
+        if db_type not in {'oracle','mssql'}:
+            db_type = 'oracle'
+        severity = (request.form.get('severity', '') or '').strip() or 'major'
+        severity = severity.lower()
+        if severity not in {'minor','major','critical'}:
+            severity = 'major'
         description = request.form.get('description')
         pre_sql_test = request.form.get('pre_sql_test')
         sql_test = request.form.get('sql_test')
