@@ -36,9 +36,6 @@ def _kinit(principal: str, password: str):
 # =========================================================
 
 def get_oracle_connection(ds):
-    """
-    Oracle connection – datasources iş mantığıyla uyumlu.
-    """
     try:
         import oracledb
     except ImportError:
@@ -58,17 +55,10 @@ def get_oracle_connection(ds):
     else:
         raise RuntimeError("Oracle requires service_name or SID.")
 
-    conn = oracledb.connect(user=user, password=pwd, dsn=dsn)
-    return conn
+    return oracledb.connect(user=user, password=pwd, dsn=dsn)
 
 
 def get_mssql_connection(ds):
-    """
-    MSSQL connection – pyodbc + ODBC Driver 18 ile.
-    Supports:
-      - SQL auth: auth_mode == 'sql'
-      - Windows/Kerberos: auth_mode == 'windows'  (uses kinit + AD Integrated)
-    """
     try:
         import pyodbc
     except ImportError:
@@ -88,9 +78,7 @@ def get_mssql_connection(ds):
     driver = "{ODBC Driver 18 for SQL Server}"
     db_part = f"DATABASE={database};" if database else ""
 
-    # ---------------- WINDOWS (KERBEROS) AUTH ----------------
     if auth_mode == "windows":
-        # Kerberos için FQDN lazım (IP ile SPN/kerberos genelde patlar)
         if _is_ip(host):
             raise RuntimeError("Windows (Kerberos) authentication requires Host to be FQDN, not IP.")
 
@@ -98,7 +86,6 @@ def get_mssql_connection(ds):
         if not domain_user_id:
             raise RuntimeError("Windows authentication requires domain_user_id in datasource.")
 
-        # domain user bilgilerini çek
         db = get_db()
         cursor = db.cursor()
         cursor.execute(
@@ -113,9 +100,6 @@ def get_mssql_connection(ds):
         if not du:
             raise RuntimeError("Domain user not found or inactive.")
 
-        # password_enc senin tabloda nasıl tutuluyorsa ona göre:
-        # önceki eklediğimiz kodda .decode('utf-8') kullanmıştık, onu koruyorum.
-        # Eğer burada bytes değilse zaten str döner.
         pw = du.get("password_enc")
         if isinstance(pw, (bytes, bytearray)):
             pw = pw.decode("utf-8")
@@ -133,7 +117,6 @@ def get_mssql_connection(ds):
         )
         return pyodbc.connect(conn_str, timeout=5)
 
-    # ---------------- SQL AUTH ----------------
     if not password:
         raise RuntimeError("SQL authentication requires password.")
 
@@ -149,10 +132,6 @@ def get_mssql_connection(ds):
 
 
 def evaluate_condition(result_value, condition_text):
-    """
-    result_value: SQL_Test'ten dönen ilk kolon (int/float/str/None)
-    condition_text: ör. '> 0', '== 0', "== 'OPEN'"
-    """
     if not condition_text:
         return None, None
 
@@ -174,7 +153,6 @@ def list_checkpoints():
     db = get_db()
     cursor = db.cursor()
 
-    # --- Search param: URL varsa onu al, yoksa session'dan oku ---
     q_param = request.args.get('q')
     if q_param is not None:
         search = q_param.strip()
@@ -182,7 +160,6 @@ def list_checkpoints():
     else:
         search = session.get('cp_search', '').strip()
 
-    # --- Pagination params ---
     try:
         page = int(request.args.get('page', 1))
     except (TypeError, ValueError):
@@ -194,16 +171,16 @@ def list_checkpoints():
 
     where_clause = ""
     params_count = []
-
     if search:
         where_clause = """
             WHERE
                 Name LIKE %s
                 OR DB_Type LIKE %s
                 OR Severity LIKE %s
+                OR Category LIKE %s
         """
         like = f"%{search}%"
-        params_count = [like, like, like]
+        params_count = [like, like, like, like]
 
     cursor.execute(f"SELECT COUNT(*) AS cnt FROM checkpoints {where_clause}", params_count)
     total_records = cursor.fetchone()["cnt"]
@@ -226,7 +203,8 @@ def list_checkpoints():
             Id AS id,
             Name AS name,
             DB_Type AS db_type,
-            Severity AS severity
+            Severity AS severity,
+            Category AS category
         FROM checkpoints
         {where_clause}
         ORDER BY Name ASC
@@ -234,7 +212,6 @@ def list_checkpoints():
         """,
         params_rows,
     )
-
     rows = cursor.fetchall()
 
     if total_records == 0:
@@ -265,14 +242,20 @@ def list_checkpoints():
 def new_checkpoint():
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
-        db_type = request.form.get('db_type', '').strip()
-        db_type = db_type.lower()
-        if db_type not in {'oracle','mssql'}:
+
+        db_type = (request.form.get('db_type', '') or '').strip().lower()
+        if db_type not in {'oracle', 'mssql'}:
             db_type = 'oracle'
-        severity = (request.form.get('severity', '') or '').strip() or 'major'
-        severity = severity.lower()
-        if severity not in {'minor','major','critical'}:
+
+        # UPDATED SEVERITY ENUM
+        severity = (request.form.get('severity', '') or '').strip().lower() or 'major'
+        if severity not in {'info', 'caution', 'minor', 'major', 'critical'}:
             severity = 'major'
+
+        category = (request.form.get('category', '') or '').strip().upper() or 'OTHER'
+        if category not in {'AUTH','PRIV','CONFIG','PATCH','AUDIT','ENCRYPT','ACCOUNT','OTHER'}:
+            category = 'OTHER'
+
         description = request.form.get('description')
         pre_sql_test = request.form.get('pre_sql_test')
         sql_test = request.form.get('sql_test')
@@ -292,13 +275,13 @@ def new_checkpoint():
 
         cursor.execute("""
             INSERT INTO checkpoints (
-                Name, DB_Type, Severity, Description,
+                Name, DB_Type, Severity, Category, Description,
                 Pre_SQL_Test, SQL_Test, Test_Condition,
                 Pre_SQL_Detail, SQL_Detail,
                 Text_Pass, Text_Fail, Notes
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
-            name, db_type, severity, description,
+            name, db_type, severity, category, description,
             pre_sql_test, sql_test, test_condition,
             pre_sql_detail, sql_detail,
             text_pass, text_fail, notes
@@ -314,6 +297,7 @@ def new_checkpoint():
         'name': '',
         'db_type': 'oracle',
         'severity': 'major',
+        'category': 'OTHER',
         'description': '',
         'pre_sql_test': '',
         'sql_test': '',
@@ -338,14 +322,20 @@ def edit_checkpoint(checkpoint_id):
 
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
-        db_type = request.form.get('db_type', '').strip()
-        db_type = db_type.lower()
-        if db_type not in {'oracle','mssql'}:
+
+        db_type = (request.form.get('db_type', '') or '').strip().lower()
+        if db_type not in {'oracle', 'mssql'}:
             db_type = 'oracle'
-        severity = (request.form.get('severity', '') or '').strip() or 'major'
-        severity = severity.lower()
-        if severity not in {'minor','major','critical'}:
+
+        # UPDATED SEVERITY ENUM
+        severity = (request.form.get('severity', '') or '').strip().lower() or 'major'
+        if severity not in {'info', 'caution', 'minor', 'major', 'critical'}:
             severity = 'major'
+
+        category = (request.form.get('category', '') or '').strip().upper() or 'OTHER'
+        if category not in {'AUTH','PRIV','CONFIG','PATCH','AUDIT','ENCRYPT','ACCOUNT','OTHER'}:
+            category = 'OTHER'
+
         description = request.form.get('description')
         pre_sql_test = request.form.get('pre_sql_test')
         sql_test = request.form.get('sql_test')
@@ -364,13 +354,13 @@ def edit_checkpoint(checkpoint_id):
 
         cursor.execute("""
             UPDATE checkpoints SET
-                Name=%s, DB_Type=%s, Severity=%s, Description=%s,
+                Name=%s, DB_Type=%s, Severity=%s, Category=%s, Description=%s,
                 Pre_SQL_Test=%s, SQL_Test=%s, Test_Condition=%s,
                 Pre_SQL_Detail=%s, SQL_Detail=%s,
                 Text_Pass=%s, Text_Fail=%s, Notes=%s
             WHERE Id=%s
         """, (
-            name, db_type, severity, description,
+            name, db_type, severity, category, description,
             pre_sql_test, sql_test, test_condition,
             pre_sql_detail, sql_detail,
             text_pass, text_fail, notes,
@@ -384,6 +374,7 @@ def edit_checkpoint(checkpoint_id):
     cursor.execute("""
         SELECT 
             Id AS id, Name AS name, DB_Type AS db_type, Severity AS severity,
+            Category AS category,
             Description AS description,
             Pre_SQL_Test AS pre_sql_test,
             SQL_Test AS sql_test,
@@ -406,294 +397,6 @@ def edit_checkpoint(checkpoint_id):
 
 
 # =========================================================
-# -------------------------- RUN TEST ----------------------
-# =========================================================
-
-@checkpoints_bp.route('/<int:checkpoint_id>/run-test', methods=['GET', 'POST'])
-def run_checkpoint_test(checkpoint_id):
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("""
-        SELECT 
-            Id AS id, Name AS name, DB_Type AS db_type,
-            Severity AS severity, Description AS description,
-            Pre_SQL_Test AS pre_sql_test,
-            SQL_Test AS sql_test,
-            Test_Condition AS test_condition
-        FROM checkpoints
-        WHERE Id=%s
-    """, (checkpoint_id,))
-    checkpoint = cursor.fetchone()
-
-    if not checkpoint:
-        flash('Checkpoint bulunamadı.', 'danger')
-        return redirect(url_for('checkpoints.list_checkpoints'))
-
-    cursor.execute("""
-        SELECT 
-            ds_id AS id, ds_name AS name,
-            db_type, host, port,
-            auth_mode, domain,
-            domain_user_id,
-            username, password,
-            database_name,
-            oracle_service_name, oracle_sid
-        FROM datasources
-        WHERE db_type=%s
-        ORDER BY ds_name
-    """, (checkpoint['db_type'],))
-    datasources = cursor.fetchall()
-
-    selected_ds = None
-    result_value = None
-    condition_expr = None
-    status = None
-    error_message = None
-
-    if request.method == 'POST':
-        ds_id = request.form.get('datasource_id')
-
-        if not ds_id:
-            flash("Please select a datasource.", "danger")
-        else:
-            selected_ds = next((d for d in datasources if str(d["id"]) == ds_id), None)
-            if not selected_ds:
-                flash("Datasource not found.", "danger")
-            else:
-                # ---------- CONNECT ----------
-                try:
-                    if checkpoint["db_type"] == "oracle":
-                        conn = get_oracle_connection(selected_ds)
-                    elif checkpoint["db_type"] == "mssql":
-                        conn = get_mssql_connection(selected_ds)
-                    else:
-                        raise RuntimeError("Unsupported DB")
-                except Exception as e:
-                    status = "ERROR"
-                    error_message = str(e)
-                else:
-                    try:
-                        cur = conn.cursor()
-
-                        # ----------- PRE SQL -------------
-                        pre_sql = checkpoint.get("pre_sql_test")
-                        if pre_sql:
-                            try:
-                                for stmt in pre_sql.split(";"):
-                                    if stmt.strip():
-                                        cur.execute(stmt)
-                                conn.commit()
-                            except Exception as e:
-                                status = "ERROR"
-                                error_message = f"Pre SQL Test error: {e}"
-                                cur.close()
-                                conn.close()
-                                return render_template(
-                                    "checkpoints/run_test.html",
-                                    checkpoint=checkpoint,
-                                    datasources=datasources,
-                                    selected_ds=selected_ds,
-                                    status=status,
-                                    error_message=error_message,
-                                    result_value=None,
-                                    condition_expr=None
-                                )
-
-                        # ----------- SQL TEST -------------
-                        sql_test = checkpoint.get("sql_test")
-                        try:
-                            cur.execute(sql_test)
-                            row = cur.fetchone()
-                        except Exception as e:
-                            status = "ERROR"
-                            error_message = f"SQL Test error: {e}"
-                            cur.close()
-                            conn.close()
-                            return render_template(
-                                "checkpoints/run_test.html",
-                                checkpoint=checkpoint,
-                                datasources=datasources,
-                                selected_ds=selected_ds,
-                                status=status,
-                                error_message=error_message,
-                                result_value=None,
-                                condition_expr=None
-                            )
-
-                        cur.close()
-                        conn.close()
-
-                        if not row:
-                            status = "ERROR"
-                            error_message = "SQL Test returned no rows."
-                        else:
-                            result_value = row[0]
-                            cond_text = checkpoint.get("test_condition")
-
-                            eval_result, eval_error = evaluate_condition(result_value, cond_text)
-                            if eval_error:
-                                status = "ERROR"
-                                error_message = eval_error
-                            else:
-                                if eval_result is None:
-                                    status = "NO_CONDITION"
-                                else:
-                                    ok, condition_expr = eval_result
-                                    status = "PASS" if ok else "FAIL"
-
-                    except Exception as e:
-                        status = "ERROR"
-                        error_message = str(e)
-
-    return render_template(
-        "checkpoints/run_test.html",
-        checkpoint=checkpoint,
-        datasources=datasources,
-        selected_ds=selected_ds,
-        status=status,
-        error_message=error_message,
-        result_value=result_value,
-        condition_expr=condition_expr
-    )
-
-
-# =========================================================
-# ----------------------- RUN SQL DETAIL -------------------
-# =========================================================
-
-@checkpoints_bp.route('/<int:checkpoint_id>/run-sql-detail', methods=['GET', 'POST'])
-def run_checkpoint_detail(checkpoint_id):
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("""
-        SELECT 
-            Id AS id, Name AS name, DB_Type AS db_type,
-            Severity AS severity, Description AS description,
-            Pre_SQL_Detail AS pre_sql_detail,
-            SQL_Detail AS sql_detail
-        FROM checkpoints
-        WHERE Id=%s
-    """, (checkpoint_id,))
-    checkpoint = cursor.fetchone()
-
-    if not checkpoint:
-        flash('Checkpoint bulunamadı.', 'danger')
-        return redirect(url_for('checkpoints.list_checkpoints'))
-
-    cursor.execute("""
-        SELECT 
-            ds_id AS id, ds_name AS name,
-            db_type, host, port,
-            auth_mode, domain,
-            domain_user_id,
-            username, password,
-            database_name,
-            oracle_service_name, oracle_sid
-        FROM datasources
-        WHERE db_type=%s
-        ORDER BY ds_name
-    """, (checkpoint['db_type'],))
-    datasources = cursor.fetchall()
-
-    selected_ds = None
-    detail_columns = []
-    detail_rows = []
-    status = None
-    error_message = None
-
-    if request.method == 'POST':
-        ds_id = request.form.get('datasource_id')
-
-        if not ds_id:
-            flash("Please select a datasource.", "danger")
-        else:
-            selected_ds = next((d for d in datasources if str(d["id"]) == ds_id), None)
-
-            try:
-                if checkpoint["db_type"] == "oracle":
-                    conn = get_oracle_connection(selected_ds)
-                elif checkpoint["db_type"] == "mssql":
-                    conn = get_mssql_connection(selected_ds)
-                else:
-                    raise RuntimeError("Unsupported DB")
-            except Exception as e:
-                status = "ERROR"
-                error_message = str(e)
-            else:
-                try:
-                    cur = conn.cursor()
-
-                    # ------- PRE SQL DETAIL -------
-                    pre_sql = checkpoint.get("pre_sql_detail")
-                    if pre_sql:
-                        try:
-                            for stmt in pre_sql.split(";"):
-                                if stmt.strip():
-                                    cur.execute(stmt)
-                            conn.commit()
-                        except Exception as e:
-                            status = "ERROR"
-                            error_message = f"Pre SQL Detail error: {e}"
-                            cur.close()
-                            conn.close()
-                            return render_template(
-                                "checkpoints/run_detail.html",
-                                checkpoint=checkpoint,
-                                datasources=datasources,
-                                selected_ds=selected_ds,
-                                status=status,
-                                error_message=error_message,
-                                detail_columns=[],
-                                detail_rows=[]
-                            )
-
-                    # ------- SQL DETAIL -------
-                    try:
-                        cur.execute(checkpoint["sql_detail"])
-                        rows = cur.fetchall()
-                        cols = [desc[0] for desc in cur.description] if cur.description else []
-                    except Exception as e:
-                        status = "ERROR"
-                        error_message = f"SQL Detail error: {e}"
-                        cur.close()
-                        conn.close()
-                        return render_template(
-                            "checkpoints/run_detail.html",
-                            checkpoint=checkpoint,
-                            datasources=datasources,
-                            selected_ds=selected_ds,
-                            status=status,
-                            error_message=error_message,
-                            detail_columns=[],
-                            detail_rows=[]
-                        )
-
-                    cur.close()
-                    conn.close()
-
-                    detail_columns = cols
-                    detail_rows = [dict(zip(cols, r)) for r in rows]
-                    status = "OK"
-
-                except Exception as e:
-                    status = "ERROR"
-                    error_message = str(e)
-
-    return render_template(
-        "checkpoints/run_detail.html",
-        checkpoint=checkpoint,
-        datasources=datasources,
-        selected_ds=selected_ds,
-        status=status,
-        error_message=error_message,
-        detail_columns=detail_columns,
-        detail_rows=detail_rows
-    )
-
-
-# =========================================================
 # -------------------------- DELETE ------------------------
 # =========================================================
 
@@ -701,20 +404,7 @@ def run_checkpoint_detail(checkpoint_id):
 def delete_checkpoint(checkpoint_id):
     db = get_db()
     cursor = db.cursor()
-
-    cursor.execute("""
-        SELECT Id, Name
-        FROM checkpoints
-        WHERE Id = %s
-    """, (checkpoint_id,))
-    row = cursor.fetchone()
-
-    if not row:
-        flash('Checkpoint bulunamadı.', 'danger')
-        return redirect(url_for('checkpoints.list_checkpoints'))
-
-    cursor.execute("DELETE FROM checkpoints WHERE Id = %s", (checkpoint_id,))
+    cursor.execute("DELETE FROM checkpoints WHERE Id=%s", (checkpoint_id,))
     db.commit()
-
-    flash(f"Checkpoint '{row['Name']}' silindi.", 'success')
+    flash('Checkpoint deleted.', 'success')
     return redirect(url_for('checkpoints.list_checkpoints'))

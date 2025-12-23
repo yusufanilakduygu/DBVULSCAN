@@ -12,37 +12,22 @@
 .ds-table{width:100%;border-collapse:collapse;}
 .ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
 .ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;}
-.actions a,.actions button{display:inline-block;padding:6px 10px;border-radius:8px;font-size:13px;text-decoration:none;cursor:pointer;border:1px solid #e5e9f2;background:#fff;}
-.actions a:hover,.actions button:hover{background:#f8fafc;}
+.actions button{display:inline-block;padding:6px 10px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #e5e9f2;background:#fff;}
+.actions button:hover{background:#f8fafc;}
 .actions .danger{border-color:#fecaca;color:#7f1d1d;background:#fff;}
 .actions .danger:hover{background:#fff1f2;}
 .search-box{display:flex;align-items:center;gap:6px;}
 .search-box input{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;width:220px;}
-
-/* Name link (Edit yerine tıklanabilir ad) */
-.cp-link{
-  color:#2563eb;
-  font-weight:600;
-  text-decoration:none;
-  cursor:pointer;
-}
-.cp-link:hover{
-  color:#1d4ed8;
-  text-decoration:underline;
-}
-
-/* Üst sağda sayfa ve kayıt bilgisi */
+.cp-link{color:#2563eb;font-weight:600;text-decoration:none;cursor:pointer;}
+.cp-link:hover{color:#1d4ed8;text-decoration:underline;}
 .ds-meta{display:flex;align-items:center;gap:6px;font-size:12px;color:#6b7280;margin-left:auto;}
 .ds-meta .badge{background:#f9fafb;}
-
-/* Alt kısım pager */
 .ds-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid #e5e9f2;font-size:12px;color:#6b7280;}
 .pagination{display:flex;list-style:none;padding:0;margin:0;gap:4px;}
 .pagination li{display:inline-block;}
 .pagination .page-link{display:inline-block;padding:4px 8px;border-radius:8px;border:1px solid #e5e9f2;text-decoration:none;font-size:12px;color:#374151;background:#fff;}
 .pagination .page-item.active .page-link{background:#2563eb;color:#fff;border-color:#1d4ed8;}
 .pagination .page-item.disabled .page-link{opacity:0.5;pointer-events:none;}
-
 @media (max-width: 980px){
   .ds-head{flex-direction:column;align-items:flex-start;}
   .ds-meta{margin-left:0;}
@@ -54,16 +39,9 @@
   <div class="ds-head">
     <div class="ds-title">Checkpoints</div>
 
-    <!-- Search kutusu: server-side, değer korunuyor -->
     <div class="search-box">
       <form method="get" action="{{ url_for('checkpoints.list_checkpoints') }}" style="display:flex;align-items:center;gap:6px;">
-        <input
-          type="text"
-          name="q"
-          id="searchInput"
-          placeholder="Search checkpoints..."
-          value="{{ search or '' }}"
-        >
+        <input type="text" name="q" placeholder="Search checkpoints..." value="{{ search or '' }}">
       </form>
     </div>
 
@@ -71,7 +49,6 @@
       <a href="{{ url_for('checkpoints.new_checkpoint') }}" class="btn btn-primary">New Checkpoint</a>
     </div>
 
-    <!-- Üst sağdaki sayfa & kayıt bilgisi -->
     <div class="ds-meta">
       <span class="badge">Page {{ page }} / {{ total_pages }}</span>
       <span class="badge">{{ start_record }}–{{ end_record }} of {{ total_records }}</span>
@@ -84,6 +61,7 @@
         <tr>
           <th>Name</th>
           <th>DB Type</th>
+          <th>Category</th>
           <th>Severity</th>
           <th style="width:200px">Actions</th>
         </tr>
@@ -97,7 +75,8 @@
             </a>
           </td>
           <td><span class="badge">{{ r.db_type }}</span></td>
-          <td>{{ (r.severity or 'major')|upper }}</td>
+          <td><span class="badge">{{ (r.category or 'OTHER') }}</span></td>
+          <td><span class="badge">{{ (r.severity or 'major')|upper }}</span></td>
           <td class="actions">
             <form action="{{ url_for('checkpoints.delete_checkpoint', checkpoint_id=r.id) }}"
                   method="post" style="display:inline"
@@ -111,37 +90,22 @@
     </table>
   </div>
 
-  <!-- Alt kısım: özet + pagination -->
   <div class="ds-footer">
-    <div>
-      Showing {{ start_record }}–{{ end_record }} of {{ total_records }} checkpoints.
-    </div>
+    <div>Showing {{ start_record }}–{{ end_record }} of {{ total_records }} checkpoints.</div>
     <nav aria-label="Checkpoint pagination">
       <ul class="pagination">
-        <!-- Previous -->
         <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-          <a class="page-link"
-             href="{{ url_for('checkpoints.list_checkpoints', page=page-1, q=search) }}">
-            Previous
-          </a>
+          <a class="page-link" href="{{ url_for('checkpoints.list_checkpoints', page=page-1, q=search) }}">Previous</a>
         </li>
 
-        <!-- Sayfa numaraları -->
         {% for p in range(1, total_pages + 1) %}
           <li class="page-item {% if p == page %}active{% endif %}">
-            <a class="page-link"
-               href="{{ url_for('checkpoints.list_checkpoints', page=p, q=search) }}">
-              {{ p }}
-            </a>
+            <a class="page-link" href="{{ url_for('checkpoints.list_checkpoints', page=p, q=search) }}">{{ p }}</a>
           </li>
         {% endfor %}
 
-        <!-- Next -->
         <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-          <a class="page-link"
-             href="{{ url_for('checkpoints.list_checkpoints', page=page+1, q=search) }}">
-            Next
-          </a>
+          <a class="page-link" href="{{ url_for('checkpoints.list_checkpoints', page=page+1, q=search) }}">Next</a>
         </li>
       </ul>
     </nav>
