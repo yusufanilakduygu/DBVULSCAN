@@ -153,15 +153,67 @@ def list_checkpoints():
     db = get_db()
     cursor = db.cursor()
 
-    q_param = request.args.get('q')
+    # -------------------------
+    # RESET (clear all filters)
+    # -------------------------
+    if request.args.get("reset") == "1":
+        session.pop("cp_search", None)
+        session.pop("cp_f_db_type", None)
+        session.pop("cp_f_category", None)
+        session.pop("cp_f_severity", None)
+        return redirect(url_for("checkpoints.list_checkpoints"))
+
+    # -------------------------
+    # SEARCH (persist via session)
+    # -------------------------
+    q_param = request.args.get("q")
     if q_param is not None:
         search = q_param.strip()
-        session['cp_search'] = search
+        session["cp_search"] = search
     else:
-        search = session.get('cp_search', '').strip()
+        search = (session.get("cp_search") or "").strip()
 
+    # -------------------------
+    # FILTERS (persist via session)
+    # -------------------------
+    # db_type
+    if "db_type" in request.args:
+        f_db_type = (request.args.get("db_type") or "").strip().lower()
+        if f_db_type not in {"", "oracle", "mssql"}:
+            f_db_type = ""
+        session["cp_f_db_type"] = f_db_type
+    else:
+        f_db_type = (session.get("cp_f_db_type") or "").strip().lower()
+        if f_db_type not in {"", "oracle", "mssql"}:
+            f_db_type = ""
+
+    # category
+    if "category" in request.args:
+        f_category = (request.args.get("category") or "").strip().upper()
+        if f_category not in {"", "AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"}:
+            f_category = ""
+        session["cp_f_category"] = f_category
+    else:
+        f_category = (session.get("cp_f_category") or "").strip().upper()
+        if f_category not in {"", "AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"}:
+            f_category = ""
+
+    # severity
+    if "severity" in request.args:
+        f_severity = (request.args.get("severity") or "").strip().lower()
+        if f_severity not in {"", "info", "caution", "minor", "major", "critical"}:
+            f_severity = ""
+        session["cp_f_severity"] = f_severity
+    else:
+        f_severity = (session.get("cp_f_severity") or "").strip().lower()
+        if f_severity not in {"", "info", "caution", "minor", "major", "critical"}:
+            f_severity = ""
+
+    # -------------------------
+    # PAGINATION
+    # -------------------------
     try:
-        page = int(request.args.get('page', 1))
+        page = int(request.args.get("page", 1))
     except (TypeError, ValueError):
         page = 1
     if page < 1:
@@ -169,20 +221,44 @@ def list_checkpoints():
 
     per_page = 15
 
-    where_clause = ""
-    params_count = []
+    # -------------------------
+    # BUILD WHERE (search + filters)
+    # -------------------------
+    where_parts = []
+    params = []
+
     if search:
-        where_clause = """
-            WHERE
+        where_parts.append("""
+            (
                 Name LIKE %s
                 OR DB_Type LIKE %s
                 OR Severity LIKE %s
                 OR Category LIKE %s
-        """
+            )
+        """)
         like = f"%{search}%"
-        params_count = [like, like, like, like]
+        params.extend([like, like, like, like])
 
-    cursor.execute(f"SELECT COUNT(*) AS cnt FROM checkpoints {where_clause}", params_count)
+    if f_db_type:
+        where_parts.append("DB_Type = %s")
+        params.append(f_db_type)
+
+    if f_category:
+        where_parts.append("Category = %s")
+        params.append(f_category)
+
+    if f_severity:
+        where_parts.append("Severity = %s")
+        params.append(f_severity)
+
+    where_clause = ""
+    if where_parts:
+        where_clause = "WHERE " + " AND ".join(where_parts)
+
+    # -------------------------
+    # COUNT
+    # -------------------------
+    cursor.execute(f"SELECT COUNT(*) AS cnt FROM checkpoints {where_clause}", params)
     total_records = cursor.fetchone()["cnt"]
 
     if total_records == 0:
@@ -195,8 +271,10 @@ def list_checkpoints():
             page = total_pages
         offset = (page - 1) * per_page
 
-    params_rows = params_count + [per_page, offset]
-
+    # -------------------------
+    # ROWS
+    # -------------------------
+    params_rows = params + [per_page, offset]
     cursor.execute(
         f"""
         SELECT
@@ -231,6 +309,9 @@ def list_checkpoints():
         start_record=start_record,
         end_record=end_record,
         search=search,
+        f_db_type=f_db_type,
+        f_category=f_category,
+        f_severity=f_severity,
     )
 
 

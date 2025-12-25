@@ -3,7 +3,7 @@
 {% block content %}
 <style>
 .ds-wrap{background:#fff;border:1px solid #e5e9f2;border-radius:12px;}
-.ds-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e9f2;flex-wrap:wrap;gap:8px;}
+.ds-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e9f2;flex-wrap:wrap;gap:10px;}
 .ds-title{font-weight:800;}
 .ds-actions a.btn{display:inline-block;padding:8px 12px;border-radius:8px;text-decoration:none;}
 .btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8;}
@@ -28,6 +28,17 @@
 .pagination .page-link{display:inline-block;padding:4px 8px;border-radius:8px;border:1px solid #e5e9f2;text-decoration:none;font-size:12px;color:#374151;background:#fff;}
 .pagination .page-item.active .page-link{background:#2563eb;color:#fff;border-color:#1d4ed8;}
 .pagination .page-item.disabled .page-link{opacity:0.5;pointer-events:none;}
+
+.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.filters select{
+  border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;
+}
+.filters .btn-link{
+  border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;cursor:pointer;
+  text-decoration:none;color:#374151;
+}
+.filters .btn-link:hover{background:#f8fafc;}
+
 @media (max-width: 980px){
   .ds-head{flex-direction:column;align-items:flex-start;}
   .ds-meta{margin-left:0;}
@@ -39,9 +50,51 @@
   <div class="ds-head">
     <div class="ds-title">Checkpoints</div>
 
+    <!-- Search -->
     <div class="search-box">
-      <form method="get" action="{{ url_for('checkpoints.list_checkpoints') }}" style="display:flex;align-items:center;gap:6px;">
+      <form id="searchForm" method="get" action="{{ url_for('checkpoints.list_checkpoints') }}" style="display:flex;align-items:center;gap:6px;">
         <input type="text" name="q" placeholder="Search checkpoints..." value="{{ search or '' }}">
+        <!-- keep filters in search submit -->
+        <input type="hidden" name="db_type" value="{{ f_db_type or '' }}">
+        <input type="hidden" name="category" value="{{ f_category or '' }}">
+        <input type="hidden" name="severity" value="{{ f_severity or '' }}">
+      </form>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <form id="filterForm" method="get" action="{{ url_for('checkpoints.list_checkpoints') }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <!-- keep search while filtering -->
+        <input type="hidden" name="q" value="{{ search or '' }}">
+
+        <select name="db_type" onchange="this.form.submit()">
+          <option value="" {% if not f_db_type %}selected{% endif %}>DB Type (All)</option>
+          <option value="oracle" {% if f_db_type=='oracle' %}selected{% endif %}>oracle</option>
+          <option value="mssql" {% if f_db_type=='mssql' %}selected{% endif %}>mssql</option>
+        </select>
+
+        <select name="category" onchange="this.form.submit()">
+          <option value="" {% if not f_category %}selected{% endif %}>Category (All)</option>
+          <option value="AUTH" {% if f_category=='AUTH' %}selected{% endif %}>AUTH</option>
+          <option value="PRIV" {% if f_category=='PRIV' %}selected{% endif %}>PRIV</option>
+          <option value="CONFIG" {% if f_category=='CONFIG' %}selected{% endif %}>CONFIG</option>
+          <option value="PATCH" {% if f_category=='PATCH' %}selected{% endif %}>PATCH</option>
+          <option value="AUDIT" {% if f_category=='AUDIT' %}selected{% endif %}>AUDIT</option>
+          <option value="ENCRYPT" {% if f_category=='ENCRYPT' %}selected{% endif %}>ENCRYPT</option>
+          <option value="ACCOUNT" {% if f_category=='ACCOUNT' %}selected{% endif %}>ACCOUNT</option>
+          <option value="OTHER" {% if f_category=='OTHER' %}selected{% endif %}>OTHER</option>
+        </select>
+
+        <select name="severity" onchange="this.form.submit()">
+          <option value="" {% if not f_severity %}selected{% endif %}>Severity (All)</option>
+          <option value="critical" {% if f_severity=='critical' %}selected{% endif %}>critical</option>
+          <option value="major" {% if f_severity=='major' %}selected{% endif %}>major</option>
+          <option value="minor" {% if f_severity=='minor' %}selected{% endif %}>minor</option>
+          <option value="caution" {% if f_severity=='caution' %}selected{% endif %}>caution</option>
+          <option value="info" {% if f_severity=='info' %}selected{% endif %}>info</option>
+        </select>
+
+        <a class="btn-link" href="{{ url_for('checkpoints.list_checkpoints', reset=1) }}">Reset</a>
       </form>
     </div>
 
@@ -95,17 +148,26 @@
     <nav aria-label="Checkpoint pagination">
       <ul class="pagination">
         <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('checkpoints.list_checkpoints', page=page-1, q=search) }}">Previous</a>
+          <a class="page-link"
+             href="{{ url_for('checkpoints.list_checkpoints', page=page-1, q=search, db_type=f_db_type, category=f_category, severity=f_severity) }}">
+            Previous
+          </a>
         </li>
 
         {% for p in range(1, total_pages + 1) %}
           <li class="page-item {% if p == page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('checkpoints.list_checkpoints', page=p, q=search) }}">{{ p }}</a>
+            <a class="page-link"
+               href="{{ url_for('checkpoints.list_checkpoints', page=p, q=search, db_type=f_db_type, category=f_category, severity=f_severity) }}">
+              {{ p }}
+            </a>
           </li>
         {% endfor %}
 
         <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('checkpoints.list_checkpoints', page=page+1, q=search) }}">Next</a>
+          <a class="page-link"
+             href="{{ url_for('checkpoints.list_checkpoints', page=page+1, q=search, db_type=f_db_type, category=f_category, severity=f_severity) }}">
+            Next
+          </a>
         </li>
       </ul>
     </nav>
