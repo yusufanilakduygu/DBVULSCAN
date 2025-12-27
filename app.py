@@ -10,6 +10,8 @@ from datasources import datasources_bp    # datasources blueprint
 from checkpoints import checkpoints_bp    # checkpoints blueprint
 from domainusers import domainusers_bp    # domain users blueprint
 from settings import settings_bp     # settings CRUD blueprint
+from benchmarks import benchmarks_bp
+
 
 def get_setting_value(key):
     """
@@ -60,6 +62,8 @@ def create_app():
     app.register_blueprint(checkpoints_bp, url_prefix="/checkpoints")
     app.register_blueprint(domainusers_bp)    # url_prefix domainusers/__init__.py içinde
     app.register_blueprint(settings_bp)
+    app.register_blueprint(benchmarks_bp, url_prefix="/benchmarks")
+
 
     # Her şablonda current_user ve current_role otomatik görün (session tabanlı)
     @app.context_processor

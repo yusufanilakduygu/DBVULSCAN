@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+{% block title %}
+  {% if is_new %}New Benchmark{% else %}Edit Benchmark{% endif %} · DB Vulnerability Scan
+{% endblock %}
+
+{% block content %}
+<style>
+/* Benchmarks form: checkpoints standard */
+.form-wrap{background:#fff;padding:20px;border:1px solid #e6e6e6;border-radius:12px;max-width:1100px;margin:auto;}
+.form-wrap label{font-size:14px;font-weight:600;display:block;margin-bottom:4px;}
+.form-wrap input[type="text"], .form-wrap select, .form-wrap textarea{width:100%;padding:8px 10px;border:1px solid #d9d9d9;border-radius:8px;font-size:14px;}
+.form-row{display:flex;gap:20px;margin-bottom:20px;}
+.form-col{flex:1;}
+textarea{min-height:90px;}
+.big-textarea{min-height:120px;}
+.form-buttons{margin-top:25px;display:flex;justify-content:center;gap:20px;flex-wrap:wrap;}
+.btn-std{padding:10px 26px;border-radius:8px;border:1px solid #dcdcdc;background:#fff;cursor:pointer;font-size:15px;text-decoration:none;text-align:center;}
+.btn-save{background:#2563eb;color:white;border-color:#1d4ed8;}
+.btn-save:hover{background:#1d4ed8;}
+.btn-back:hover{background:#f4f4f4;}
+.btn-disabled{opacity:.5;cursor:default;}
+</style>
+
+<div class="form-wrap">
+  <h3 style="font-weight:800;margin-bottom:25px;">
+    {% if is_new %}New Benchmarks{% else %}Edit Benchmarks{% endif %}
+  </h3>
+
+  <form method="post">
+    <div class="form-row">
+      <div class="form-col">
+        <label>Code *</label>
+        <input type="text" name="code" value="{{ bm.code or '' }}" placeholder="e.g. ORA-CIS-19C">
+      </div>
+
+      <div class="form-col">
+        <label>Name *</label>
+        <input type="text" name="name" value="{{ bm.name or '' }}" placeholder="e.g. Oracle CIS 19c">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-col">
+        <label>DB Type *</label>
+        <select name="db_type">
+          <option value="oracle" {% if bm.db_type=='oracle' %}selected{% endif %}>Oracle</option>
+          <option value="mssql" {% if bm.db_type=='mssql' %}selected{% endif %}>MSSQL</option>
+        </select>
+      </div>
+
+      <div class="form-col">
+        <label>Version</label>
+        <input type="text" name="version" value="{{ bm.version or '' }}" placeholder="e.g. 19c / 21c / 2019">
+      </div>
+
+      <div class="form-col">
+        <label>Level *</label>
+        <select name="level">
+          <option value="L1" {% if (bm.level or 'L1')=='L1' %}selected{% endif %}>L1</option>
+          <option value="L2" {% if (bm.level or 'L1')=='L2' %}selected{% endif %}>L2</option>
+        </select>
+      </div>
+
+      <div class="form-col">
+        <label>Status *</label>
+        <select name="status">
+          <option value="ACTIVE" {% if (bm.status or 'ACTIVE')=='ACTIVE' %}selected{% endif %}>ACTIVE</option>
+          <option value="INACTIVE" {% if (bm.status or 'ACTIVE')=='INACTIVE' %}selected{% endif %}>INACTIVE</option>
+          <option value="DRAFT" {% if (bm.status or 'ACTIVE')=='DRAFT' %}selected{% endif %}>DRAFT</option>
+        </select>
+      </div>
+    </div>
+
+    <label>Description</label>
+    <textarea class="big-textarea" name="description">{{ bm.description or '' }}</textarea>
+
+    <label>Notes</label>
+    <textarea class="big-textarea" name="notes">{{ bm.notes or '' }}</textarea>
+
+    {% if not is_new %}
+      <div style="margin-top:18px; display:flex; justify-content:center;">
+        <a href="{{ url_for('benchmarks.add_checkpoints_placeholder', benchmark_id=bm.benchmark_id) }}" class="btn-std">Add Checkpoints</a>
+      </div>
+    {% endif %}
+
+    <div class="form-buttons">
+      <button type="submit" class="btn-std btn-save">{% if is_new %}Create{% else %}Save{% endif %}</button>
+      <a href="{{ url_for('benchmarks.list_benchmarks') }}" class="btn-std btn-back">Back to Benchmarks</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
