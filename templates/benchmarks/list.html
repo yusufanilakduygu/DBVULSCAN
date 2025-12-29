@@ -112,7 +112,7 @@
           <td><span class="badge">{{ b.status }}</span></td>
           <td><span class="badge">{{ b.updated_at }}</span></td>
           <td class="actions">
-            <a href="{{ url_for('benchmarks.add_checkpoints_placeholder', benchmark_id=b.benchmark_id) }}">Add Checkpoints</a>
+            <a href="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=b.benchmark_id) }}">Add Checkpoints</a>
             <form action="{{ url_for('benchmarks.delete_benchmark', benchmark_id=b.benchmark_id) }}" method="post" style="display:inline" onsubmit="return confirm('Delete {{ b.name }}?');">
               <button class="danger" type="submit">Delete</button>
             </form>

@@ -1,0 +1,320 @@
+{% extends "layout.html" %}
+{% block title %}Benchmark Checkpoints · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+  /* Namespace everything to avoid colliding with layout.html classes */
+  .bcm-wrap{
+    background:#fff;
+    border:1px solid #e5e9f2;
+    border-radius:14px;
+    max-width:1150px;
+    margin:auto;
+    width:100%;
+
+    display:flex;
+    flex-direction:column;
+  }
+
+  .bcm-header{
+    width:100%;
+    padding:14px 16px;
+    border-bottom:1px solid #e5e9f2;
+    text-align:center;
+  }
+
+  .bcm-title{
+    font-weight:900;
+    font-size:20px;
+    margin:0 0 10px 0;
+  }
+
+  /* Benchmark info line: NEVER WRAPS */
+  .bcm-info-line{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    flex-wrap:nowrap;
+    white-space:nowrap;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:2px 4px;
+  }
+
+  .bcm-chip{
+    display:inline-block;
+    padding:4px 10px;
+    border:1px solid #e5e9f2;
+    border-radius:999px;
+    background:#fff;
+    font-size:12px;
+  }
+  .bcm-sep{color:#9ca3af;}
+
+  .bcm-content{
+    width:100%;
+    padding:16px;
+  }
+
+  .bcm-grid{
+    display:grid;
+    grid-template-columns:1fr 120px 1fr;
+    gap:14px;
+    align-items:start;
+  }
+
+  .bcm-panel{
+    border:1px solid #eef2f7;
+    border-radius:14px;
+    padding:12px;
+    background:#fff;
+  }
+
+  /* Align Selected panel vertically with Available panel */
+  .bcm-panel-selected{
+    margin-top: 120px;
+  }
+
+  .bcm-panel h4{
+    margin:0 0 10px 0;
+    font-weight:900;
+    font-size:14px;
+    text-align:center;
+  }
+
+  .bcm-filters{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-bottom:10px;
+    justify-content:center;
+  }
+
+  .bcm-filters input,
+  .bcm-filters select{
+    border:1px solid #e5e9f2;
+    border-radius:10px;
+    padding:7px 10px;
+    font-size:13px;
+    background:#fff;
+  }
+
+  .bcm-filters input{width:230px;}
+
+  .bcm-link{
+    border:1px solid #e5e9f2;
+    border-radius:10px;
+    padding:7px 12px;
+    font-size:13px;
+    background:#fff;
+    cursor:pointer;
+    text-decoration:none;
+    color:#374151;
+  }
+  .bcm-link:hover{background:#f8fafc;}
+
+  /* LEFT list height (Available) - change here if you want LEFT shorter/taller */
+  .bcm-dual{
+    width:100%;
+    min-height:420px;
+    border:1px solid #e5e9f2;
+    border-radius:12px;
+    padding:8px;
+    background:#fff;
+  }
+
+  /* RIGHT list height (Selected) - change ONLY this to adjust right panel */
+  .bcm-dual-selected{
+    min-height:380px; /* <-- change this value for RIGHT list height */
+  }
+
+  .bcm-mid{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    justify-content:center;
+    align-items:center;
+    padding-top:48px;
+  }
+
+  .bcm-move{
+    width:110px;
+    padding:10px 0;
+    border-radius:12px;
+    border:1px solid #e5e9f2;
+    background:#fff;
+    cursor:pointer;
+    font-weight:800;
+  }
+  .bcm-move:hover{background:#f8fafc;}
+
+  .bcm-hint{
+    color:#6b7280;
+    font-size:12px;
+    margin-top:8px;
+    text-align:center;
+    line-height:1.35;
+  }
+
+  .bcm-footer{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:14px;
+    margin-top:20px;
+  }
+
+  .bcm-btn{
+    padding:10px 22px;
+    border-radius:10px;
+    border:1px solid #dcdcdc;
+    background:#fff;
+    cursor:pointer;
+    font-size:15px;
+    text-decoration:none;
+    text-align:center;
+    min-width:160px;
+  }
+
+  .bcm-primary{
+    background:#2563eb;
+    color:white;
+    border-color:#1d4ed8;
+    font-weight:800;
+  }
+  .bcm-primary:hover{background:#1d4ed8;}
+
+  @media (max-width:980px){
+    .bcm-grid{grid-template-columns:1fr;}
+    .bcm-mid{flex-direction:row;padding-top:0;}
+    .bcm-dual{min-height:260px;}
+    .bcm-dual-selected{min-height:260px;} /* mobile: keep consistent */
+    .bcm-footer{flex-wrap:wrap;}
+    .bcm-panel-selected{ margin-top: 0; } /* mobile: no offset */
+  }
+</style>
+
+<div class="bcm-wrap">
+
+  <!-- TOP: title + benchmark info -->
+  <div class="bcm-header">
+    <div class="bcm-title">Benchmark · Checkpoints Mapping</div>
+
+    <div class="bcm-info-line">
+      <span class="bcm-chip">{{ bm.code }}</span>
+      <span class="bcm-sep">|</span>
+      <span class="bcm-chip">{{ bm.name }}</span>
+      <span class="bcm-sep">|</span>
+      <span class="bcm-chip">{{ (bm.db_type or '')|lower }}</span>
+      <span class="bcm-sep">|</span>
+      <span class="bcm-chip">Level {{ bm.level }}</span>
+      <span class="bcm-sep">|</span>
+      <span class="bcm-chip">{{ bm.status }}</span>
+    </div>
+  </div>
+
+  <!-- BELOW: selection UI -->
+  <div class="bcm-content">
+
+    <!-- filter form -->
+    <form id="filterForm" method="get"
+          action="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=bm.benchmark_id) }}"></form>
+
+    <!-- save form -->
+    <form id="saveForm" method="post">
+
+      <div class="bcm-grid">
+
+        <!-- AVAILABLE -->
+        <div class="bcm-panel">
+          <h4>All Checkpoints (Available)</h4>
+
+          <div class="bcm-filters">
+            <input form="filterForm"
+                   type="text"
+                   name="q"
+                   placeholder="Search (name)..."
+                   value="{{ search or '' }}">
+
+            <select form="filterForm" name="category"
+                    onchange="document.getElementById('filterForm').submit()">
+              <option value="">Category (All)</option>
+              {% for cat in ['AUTH','PRIV','CONFIG','PATCH','AUDIT','ENCRYPT','ACCOUNT','OTHER'] %}
+                <option value="{{ cat }}" {% if f_category==cat %}selected{% endif %}>{{ cat }}</option>
+              {% endfor %}
+            </select>
+
+            <select form="filterForm" name="severity"
+                    onchange="document.getElementById('filterForm').submit()">
+              <option value="">Severity (All)</option>
+              {% for sev in ['info','caution','minor','major','critical'] %}
+                <option value="{{ sev }}" {% if f_severity==sev %}selected{% endif %}>{{ sev }}</option>
+              {% endfor %}
+            </select>
+
+            <a class="bcm-link"
+               href="{{ url_for('benchmarks.edit_benchmark_checkpoints',
+                                benchmark_id=bm.benchmark_id, reset=1) }}">Reset</a>
+          </div>
+
+          <select id="available" class="bcm-dual" multiple>
+            {% for c in available %}
+              <option value="{{ c.Id }}">{{ c.Name }}</option>
+            {% endfor %}
+          </select>
+
+          <div class="bcm-hint">Tip: Use <b>Ctrl</b> / <b>Shift</b> to select multiple items.</div>
+        </div>
+
+        <!-- MOVE -->
+        <div class="bcm-mid">
+          <button type="button" class="bcm-move" onclick="moveSelected('available','selected')">&gt;&gt;</button>
+          <button type="button" class="bcm-move" onclick="moveSelected('selected','available')">&lt;&lt;</button>
+        </div>
+
+        <!-- SELECTED -->
+        <div class="bcm-panel bcm-panel-selected">
+          <h4>Selected Checkpoints (Mapped)</h4>
+
+          <select id="selected" name="selected_ids" class="bcm-dual bcm-dual-selected" multiple>
+            {% for c in selected %}
+              <option value="{{ c.Id }}">{{ c.Name }}</option>
+            {% endfor %}
+          </select>
+
+          <div class="bcm-hint">
+            Note: When you click <b>Save</b>, the order of this list will be stored as <b>sort_order</b>.
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bcm-footer">
+        <a class="bcm-btn" href="{{ url_for('benchmarks.edit_benchmark', benchmark_id=bm.benchmark_id) }}">Back to Benchmark</a>
+        <button type="submit" class="bcm-btn bcm-primary">Save</button>
+        <a class="bcm-btn" href="{{ url_for('benchmarks.edit_benchmark', benchmark_id=bm.benchmark_id) }}">Cancel</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<script>
+  function moveSelected(fromId, toId){
+    const from = document.getElementById(fromId);
+    const to = document.getElementById(toId);
+    const moving = Array.from(from.options).filter(o => o.selected);
+    moving.forEach(opt => {
+      opt.selected = false;
+      to.add(opt);
+    });
+  }
+
+  document.getElementById('saveForm').addEventListener('submit', function(){
+    Array.from(document.getElementById('selected').options)
+         .forEach(o => o.selected = true);
+  });
+</script>
+{% endblock %}

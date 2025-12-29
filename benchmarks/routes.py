@@ -251,9 +251,157 @@ def delete_benchmark(benchmark_id):
     return redirect(url_for("benchmarks.list_benchmarks"))
 
 
-@benchmarks_bp.route("/<int:benchmark_id>/add-checkpoints", methods=["GET"])
+@benchmarks_bp.route("/<int:benchmark_id>/checkpoints", methods=["GET", "POST"])
 @login_required
-def add_checkpoints_placeholder(benchmark_id):
-    # Placeholder only — real feature will be added later.
-    flash("Add Checkpoints screen will be added later (not implemented yet).", "info")
-    return redirect(url_for("benchmarks.edit_benchmark", benchmark_id=benchmark_id))
+def edit_benchmark_checkpoints(benchmark_id):
+    """Map/unmap checkpoints to a benchmark using dual-list UI."""
+    db = get_db()
+    cur = db.cursor()
+
+    # Load benchmark
+    cur.execute(
+        "SELECT benchmark_id, code, name, db_type, level, status, version FROM benchmarks WHERE benchmark_id=%s",
+        (benchmark_id,),
+    )
+    bm = cur.fetchone()
+    if not bm:
+        flash("Benchmark not found.", "danger")
+        return redirect(url_for("benchmarks.list_benchmarks"))
+
+    # -------------------------
+    # Persist search/filter in session (like other screens)
+    # -------------------------
+    if request.args.get("reset") == "1":
+        session.pop("bmcp_search", None)
+        session.pop("bmcp_category", None)
+        session.pop("bmcp_severity", None)
+        return redirect(url_for("benchmarks.edit_benchmark_checkpoints", benchmark_id=benchmark_id))
+
+    q_param = request.args.get("q")
+    if q_param is not None:
+        search = (q_param or "").strip()
+        session["bmcp_search"] = search
+    else:
+        search = (session.get("bmcp_search") or "").strip()
+
+    if "category" in request.args:
+        f_category = (request.args.get("category") or "").strip().upper()
+        # allowed: empty or one of existing enums (your table shows these)
+        allowed_cat = {"", "AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"}
+        if f_category not in allowed_cat:
+            f_category = ""
+        session["bmcp_category"] = f_category
+    else:
+        f_category = (session.get("bmcp_category") or "").strip().upper()
+
+    if "severity" in request.args:
+        f_severity = (request.args.get("severity") or "").strip().lower()
+        allowed_sev = {"", "info", "caution", "minor", "major", "critical"}
+        if f_severity not in allowed_sev:
+            f_severity = ""
+        session["bmcp_severity"] = f_severity
+    else:
+        f_severity = (session.get("bmcp_severity") or "").strip().lower()
+
+    # -------------------------
+    # On POST: save mapping
+    # -------------------------
+    if request.method == "POST":
+        raw_ids = request.form.getlist("selected_ids")
+        # Normalize to unique int list while preserving order
+        selected_ids = []
+        seen = set()
+        for x in raw_ids:
+            try:
+                cid = int(x)
+            except Exception:
+                continue
+            if cid not in seen:
+                seen.add(cid)
+                selected_ids.append(cid)
+
+        # Validate: all selected checkpoints belong to same db_type
+        if selected_ids:
+            placeholders = ",".join(["%s"] * len(selected_ids))
+            cur.execute(
+                f"SELECT COUNT(*) AS cnt FROM checkpoints WHERE Id IN ({placeholders}) AND DB_Type=%s",
+                (*selected_ids, (bm.get("db_type") if isinstance(bm, dict) else bm["db_type"])),
+            )
+            row = cur.fetchone() or {}
+            cnt = row.get("cnt") if isinstance(row, dict) else row[0]
+            if int(cnt) != len(selected_ids):
+                flash("Save failed: one or more checkpoints do not match benchmark DB Type.", "danger")
+                return redirect(url_for("benchmarks.edit_benchmark_checkpoints", benchmark_id=benchmark_id))
+
+        try:
+            # Replace mapping (simple + safe MVP)
+            cur.execute("DELETE FROM benchmark_checkpoints WHERE benchmark_id=%s", (benchmark_id,))
+
+            if selected_ids:
+                insert_sql = (
+                    "INSERT INTO benchmark_checkpoints (benchmark_id, checkpoint_id, sort_order, notes, added_at) "
+                    "VALUES (%s,%s,%s,%s,NOW())"
+                )
+                data = [(benchmark_id, cid, i + 1, None) for i, cid in enumerate(selected_ids)]
+                cur.executemany(insert_sql, data)
+
+            flash("Checkpoints mapped to benchmark.", "success")
+            return redirect(url_for("benchmarks.edit_benchmark_checkpoints", benchmark_id=benchmark_id))
+        except Exception as e:
+            flash(f"Save failed: {e}", "danger")
+            return redirect(url_for("benchmarks.edit_benchmark_checkpoints", benchmark_id=benchmark_id))
+
+    # -------------------------
+    # GET: load selected + available lists
+    # -------------------------
+    cur.execute(
+        "SELECT c.Id, c.Name, c.Severity, c.Category "
+        "FROM benchmark_checkpoints bc "
+        "JOIN checkpoints c ON c.Id = bc.checkpoint_id "
+        "WHERE bc.benchmark_id=%s "
+        "ORDER BY bc.sort_order ASC, c.Id ASC",
+        (benchmark_id,),
+    )
+    selected = cur.fetchall() or []
+    selected_ids = [r.get("Id") if isinstance(r, dict) else r[0] for r in selected]
+
+    where = ["c.DB_Type=%s"]
+    params = [bm.get("db_type") if isinstance(bm, dict) else bm["db_type"]]
+
+    if search:
+        where.append("(c.Name LIKE %s OR c.Id LIKE %s)")
+        like = f"%{search}%"
+        params.extend([like, like])
+
+    if f_category:
+        where.append("c.Category=%s")
+        params.append(f_category)
+
+    if f_severity:
+        where.append("c.Severity=%s")
+        params.append(f_severity)
+
+    if selected_ids:
+        placeholders = ",".join(["%s"] * len(selected_ids))
+        where.append(f"c.Id NOT IN ({placeholders})")
+        params.extend(selected_ids)
+
+    where_sql = " AND ".join(where)
+    cur.execute(
+        "SELECT c.Id, c.Name, c.Severity, c.Category "
+        "FROM checkpoints c "
+        f"WHERE {where_sql} "
+        "ORDER BY c.Category ASC, c.Severity DESC, c.Id ASC",
+        params,
+    )
+    available = cur.fetchall() or []
+
+    return render_template(
+        "benchmarks/checkpoints_map.html",
+        bm=bm,
+        available=available,
+        selected=selected,
+        search=search,
+        f_category=f_category,
+        f_severity=f_severity,
+    )

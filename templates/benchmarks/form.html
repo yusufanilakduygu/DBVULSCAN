@@ -79,7 +79,7 @@ textarea{min-height:90px;}
 
     {% if not is_new %}
       <div style="margin-top:18px; display:flex; justify-content:center;">
-        <a href="{{ url_for('benchmarks.add_checkpoints_placeholder', benchmark_id=bm.benchmark_id) }}" class="btn-std">Add Checkpoints</a>
+        <a href="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=bm.benchmark_id) }}" class="btn-std">Add Checkpoints</a>
       </div>
     {% endif %}
 
