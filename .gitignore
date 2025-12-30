@@ -3,3 +3,24 @@ __pycache__/
 app.log
 *.log
 
+# VS Code / Remote
+.vscode-server/
+.vscode/
+
+# Environment / secrets
+.env
+
+# Python virtual environment
+venv/
+.venv/
+env/
+
+# OS / editor artıkları
+.DS_Store
+*.swp
+
+# Node (opsiyonel)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
