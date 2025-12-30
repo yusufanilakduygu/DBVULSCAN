@@ -18,7 +18,26 @@ textarea{min-height:90px;}
 .btn-save{background:#2563eb;color:white;border-color:#1d4ed8;}
 .btn-save:hover{background:#1d4ed8;}
 .btn-back:hover{background:#f4f4f4;}
-.btn-disabled{opacity:.5;cursor:default;}
+
+/* Mapped checkpoints list (on Edit) */
+.cp-wrap{margin-top:22px;border:1px solid #eef2f7;border-radius:12px;padding:14px;background:#fff;}
+.cp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+.cp-head h4{margin:0;font-weight:900;font-size:14px;}
+.cp-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.cp-note{color:#6b7280;font-size:12px;}
+.cp-list{list-style:none;margin:0;padding:0;}
+.cp-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 10px;border:1px solid #eef2f7;border-radius:10px;margin-bottom:8px;background:#fff;}
+.cp-item.dragging{opacity:.6;}
+.cp-left{display:flex;align-items:center;gap:10px;min-width:0;}
+.cp-handle{cursor:grab;user-select:none;font-size:16px;line-height:1;color:#6b7280;padding:2px 6px;border:1px solid #eef2f7;border-radius:8px;background:#f8fafc;}
+.cp-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px;}
+.cp-meta{font-size:12px;color:#6b7280;white-space:nowrap;}
+.cp-right{display:flex;gap:6px;align-items:center;}
+.cp-mini{padding:6px 10px;border-radius:8px;border:1px solid #e5e9f2;background:#fff;cursor:pointer;font-weight:800;line-height:1;}
+.cp-mini:hover{background:#f8fafc;}
+.cp-danger{border-color:#fecaca;background:#fff;}
+.cp-danger:hover{background:#fff1f2;}
+.cp-empty{padding:10px;color:#6b7280;text-align:center;border:1px dashed #e5e9f2;border-radius:10px;}
 </style>
 
 <div class="form-wrap">
@@ -26,7 +45,15 @@ textarea{min-height:90px;}
     {% if is_new %}New Benchmarks{% else %}Edit Benchmarks{% endif %}
   </h3>
 
-  <form method="post">
+  <!-- IMPORTANT: explicit action to avoid any weird routing -->
+  <form method="post" id="bmForm"
+        action="{% if is_new %}{{ url_for('benchmarks.new_benchmark') }}{% else %}{{ url_for('benchmarks.edit_benchmark', benchmark_id=bm.benchmark_id) }}{% endif %}">
+
+    {% if not is_new %}
+      <!-- Hidden field: updated by JS to persist checkpoint order -->
+      <input type="hidden" name="checkpoint_order" id="checkpoint_order" value="">
+    {% endif %}
+
     <div class="form-row">
       <div class="form-col">
         <label>Code *</label>
@@ -78,15 +105,152 @@ textarea{min-height:90px;}
     <textarea class="big-textarea" name="notes">{{ bm.notes or '' }}</textarea>
 
     {% if not is_new %}
-      <div style="margin-top:18px; display:flex; justify-content:center;">
-        <a href="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=bm.benchmark_id) }}" class="btn-std">Add Checkpoints</a>
+      <div class="cp-wrap">
+        <div class="cp-head">
+          {% set cps = mapped_checkpoints or [] %}
+          <h4>Checkpoints (Mapped) · {{ cps|length }}</h4>
+
+          <div class="cp-actions">
+            <a href="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=bm.benchmark_id) }}" class="btn-std">
+              Manage Checkpoints
+            </a>
+            <div class="cp-note">
+              Drag &amp; drop or use ▲ ▼ to change the order. Use 🗑 to remove. Then click <b>Save</b>.
+            </div>
+          </div>
+        </div>
+
+        {% if cps|length == 0 %}
+          <div class="cp-empty">No checkpoints mapped yet.</div>
+        {% else %}
+          <ul class="cp-list" id="cpList">
+            {% for c in cps %}
+              <li class="cp-item" draggable="true" data-id="{{ c.Id }}">
+                <div class="cp-left">
+                  <span class="cp-handle" title="Drag">⋮⋮</span>
+                  <div style="min-width:0;">
+                    <div class="cp-name" title="{{ c.Name }}">{{ c.Name }}</div>
+                    <div class="cp-meta">{{ c.Category }} · {{ c.Severity }}</div>
+                  </div>
+                </div>
+
+                <div class="cp-right">
+                  <button type="button" class="cp-mini" title="Move up" onclick="moveCp(-1, this)">▲</button>
+                  <button type="button" class="cp-mini" title="Move down" onclick="moveCp(1, this)">▼</button>
+
+                  <!-- NO nested form. Delete is handled by JS (POST) -->
+                  <button type="button"
+                          class="cp-mini cp-danger js-del"
+                          title="Remove"
+                          data-del-url="{{ url_for('benchmarks.delete_benchmark_checkpoint',
+                                                   benchmark_id=bm.benchmark_id, checkpoint_id=c.Id) }}">
+                    🗑
+                  </button>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
       </div>
     {% endif %}
 
     <div class="form-buttons">
-      <button type="submit" class="btn-std btn-save">{% if is_new %}Create{% else %}Save{% endif %}</button>
+      <button type="submit" id="saveBtn" class="btn-std btn-save">{% if is_new %}Create{% else %}Save{% endif %}</button>
       <a href="{{ url_for('benchmarks.list_benchmarks') }}" class="btn-std btn-back">Back to Benchmarks</a>
     </div>
   </form>
 </div>
+
+{% if not is_new %}
+<script>
+  (function(){
+    const list = document.getElementById('cpList');
+    const hidden = document.getElementById('checkpoint_order');
+    const form = document.getElementById('bmForm');
+    if(!list || !hidden || !form) return;
+
+    function syncOrder(){
+      const ids = Array.from(list.querySelectorAll('.cp-item')).map(li => li.getAttribute('data-id'));
+      hidden.value = ids.join(',');
+      // DEBUG: istersen aç: console.log("checkpoint_order:", hidden.value);
+    }
+
+    // Up / Down
+    window.moveCp = function(delta, btn){
+      const li = btn.closest('.cp-item');
+      if(!li) return;
+      const sib = delta < 0 ? li.previousElementSibling : li.nextElementSibling;
+      if(!sib) return;
+      if(delta < 0) list.insertBefore(li, sib);
+      else list.insertBefore(sib, li);
+      syncOrder();
+    };
+
+    // Drag & drop
+    let dragging = null;
+
+    list.addEventListener('dragstart', (e) => {
+      const li = e.target.closest('.cp-item');
+      if(!li) return;
+      dragging = li;
+      li.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    list.addEventListener('dragend', () => {
+      if(dragging) dragging.classList.remove('dragging');
+      dragging = null;
+      syncOrder();
+    });
+
+    list.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if(!dragging) return;
+
+      const after = getDragAfterElement(list, e.clientY);
+      if(after == null) list.appendChild(dragging);
+      else list.insertBefore(dragging, after);
+    });
+
+    function getDragAfterElement(container, y){
+      const els = [...container.querySelectorAll('.cp-item:not(.dragging)')];
+      return els.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if(offset < 0 && offset > closest.offset){
+          return { offset: offset, element: child };
+        }
+        return closest;
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    // ✅ CRITICAL: sync right before Save submit
+    form.addEventListener('submit', function(){
+      syncOrder();
+    });
+
+    // ✅ Delete via JS POST (no nested forms ever)
+    function postTo(url){
+      const f = document.createElement('form');
+      f.method = 'post';
+      f.action = url;
+      document.body.appendChild(f);
+      f.submit();
+    }
+
+    document.querySelectorAll('.js-del').forEach(btn => {
+      btn.addEventListener('click', function(){
+        const url = this.getAttribute('data-del-url');
+        if(!url) return;
+        if(confirm('Remove this checkpoint from the benchmark?')){
+          postTo(url);
+        }
+      });
+    });
+
+    // Init
+    syncOrder();
+  })();
+</script>
+{% endif %}
 {% endblock %}

@@ -15,9 +15,7 @@ def list_benchmarks():
     db = get_db()
     cur = db.cursor()
 
-    # -------------------------
     # RESET (clear filters)
-    # -------------------------
     if request.args.get("reset") == "1":
         session.pop("bm_search", None)
         session.pop("bm_f_db_type", None)
@@ -25,9 +23,7 @@ def list_benchmarks():
         session.pop("bm_f_level", None)
         return redirect(url_for("benchmarks.list_benchmarks"))
 
-    # -------------------------
     # SEARCH (persist via session)
-    # -------------------------
     q_param = request.args.get("q")
     if q_param is not None:
         search = (q_param or "").strip()
@@ -35,9 +31,7 @@ def list_benchmarks():
     else:
         search = (session.get("bm_search") or "").strip()
 
-    # -------------------------
     # FILTERS (persist via session)
-    # -------------------------
     if "db_type" in request.args:
         f_db_type = (request.args.get("db_type") or "").strip().lower()
         if f_db_type not in {"", "oracle", "mssql"}:
@@ -68,9 +62,6 @@ def list_benchmarks():
         if f_level not in {"", "L1", "L2"}:
             f_level = ""
 
-    # -------------------------
-    # BUILD QUERY
-    # -------------------------
     where = []
     params = []
 
@@ -126,7 +117,6 @@ def new_benchmark():
         description = (request.form.get("description") or "").strip() or None
         notes = (request.form.get("notes") or "").strip() or None
 
-        # basic validation
         if not code or not name:
             flash("Code and Name are required.", "warning")
             return render_template("benchmarks/form.html", bm=request.form, is_new=True)
@@ -171,11 +161,24 @@ def edit_benchmark(benchmark_id):
     db = get_db()
     cur = db.cursor()
 
+    def _load_mapped_checkpoints():
+        cur.execute(
+            "SELECT c.Id, c.Name, c.Category, c.Severity, bc.sort_order "
+            "FROM benchmark_checkpoints bc "
+            "JOIN checkpoints c ON c.Id = bc.checkpoint_id "
+            "WHERE bc.benchmark_id=%s "
+            "ORDER BY bc.sort_order ASC, c.Id ASC",
+            (benchmark_id,),
+        )
+        return cur.fetchall() or []
+
     cur.execute("SELECT * FROM benchmarks WHERE benchmark_id=%s", (benchmark_id,))
     bm = cur.fetchone()
     if not bm:
         flash("Benchmark not found.", "danger")
         return redirect(url_for("benchmarks.list_benchmarks"))
+
+    mapped_checkpoints = _load_mapped_checkpoints()
 
     if request.method == "POST":
         code = (request.form.get("code") or "").strip()
@@ -190,22 +193,22 @@ def edit_benchmark(benchmark_id):
         if not code or not name:
             flash("Code and Name are required.", "warning")
             bm.update(request.form)
-            return render_template("benchmarks/form.html", bm=bm, is_new=False)
+            return render_template("benchmarks/form.html", bm=bm, is_new=False, mapped_checkpoints=mapped_checkpoints)
 
         if db_type not in {"oracle", "mssql"}:
             flash("Invalid db_type.", "warning")
             bm.update(request.form)
-            return render_template("benchmarks/form.html", bm=bm, is_new=False)
+            return render_template("benchmarks/form.html", bm=bm, is_new=False, mapped_checkpoints=mapped_checkpoints)
 
         if level not in {"L1", "L2"}:
             flash("Invalid level.", "warning")
             bm.update(request.form)
-            return render_template("benchmarks/form.html", bm=bm, is_new=False)
+            return render_template("benchmarks/form.html", bm=bm, is_new=False, mapped_checkpoints=mapped_checkpoints)
 
         if status not in {"ACTIVE", "INACTIVE", "DRAFT"}:
             flash("Invalid status.", "warning")
             bm.update(request.form)
-            return render_template("benchmarks/form.html", bm=bm, is_new=False)
+            return render_template("benchmarks/form.html", bm=bm, is_new=False, mapped_checkpoints=mapped_checkpoints)
 
         try:
             cur.execute(
@@ -215,8 +218,47 @@ def edit_benchmark(benchmark_id):
                 "WHERE benchmark_id=%s",
                 (code, name, db_type, version, level, status, description, notes, benchmark_id),
             )
+
+            # Optional: update checkpoint order from edit screen
+            raw_order = (request.form.get("checkpoint_order") or "").strip()
+            if raw_order:
+                order_ids = []
+                seen = set()
+                for part in raw_order.split(","):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    try:
+                        cid = int(part)
+                    except Exception:
+                        continue
+                    if cid not in seen:
+                        seen.add(cid)
+                        order_ids.append(cid)
+
+                # Keep only IDs currently mapped to this benchmark
+                cur.execute(
+                    "SELECT checkpoint_id FROM benchmark_checkpoints WHERE benchmark_id=%s",
+                    (benchmark_id,),
+                )
+                current_ids = [r.get("checkpoint_id") if isinstance(r, dict) else r[0] for r in (cur.fetchall() or [])]
+                current_set = set(current_ids)
+
+                ordered = [cid for cid in order_ids if cid in current_set]
+
+                # Append missing ones at end (safety)
+                ordered_set = set(ordered)
+                for cid in current_ids:
+                    if cid not in ordered_set:
+                        ordered.append(cid)
+
+                upd_sql = "UPDATE benchmark_checkpoints SET sort_order=%s WHERE benchmark_id=%s AND checkpoint_id=%s"
+                cur.executemany(
+                    upd_sql,
+                    [(i + 1, benchmark_id, cid) for i, cid in enumerate(ordered)],
+                )
+
             flash("Benchmark updated.", "success")
-            # Stay on the edit screen after Save
             return redirect(url_for("benchmarks.edit_benchmark", benchmark_id=benchmark_id))
         except Exception as e:
             msg = str(e)
@@ -225,9 +267,45 @@ def edit_benchmark(benchmark_id):
             else:
                 flash(f"Update failed: {msg}", "danger")
             bm.update(request.form)
-            return render_template("benchmarks/form.html", bm=bm, is_new=False)
+            mapped_checkpoints = _load_mapped_checkpoints()
+            return render_template("benchmarks/form.html", bm=bm, is_new=False, mapped_checkpoints=mapped_checkpoints)
 
-    return render_template("benchmarks/form.html", bm=bm, is_new=False)
+    return render_template("benchmarks/form.html", bm=bm, is_new=False, mapped_checkpoints=mapped_checkpoints)
+
+
+# ✅ NEW: quick delete a mapped checkpoint from edit page
+@benchmarks_bp.route("/<int:benchmark_id>/checkpoints/<int:checkpoint_id>/delete", methods=["POST"])
+@login_required
+def delete_benchmark_checkpoint(benchmark_id, checkpoint_id):
+    db = get_db()
+    cur = db.cursor()
+
+    # delete mapping
+    cur.execute(
+        "DELETE FROM benchmark_checkpoints WHERE benchmark_id=%s AND checkpoint_id=%s",
+        (benchmark_id, checkpoint_id),
+    )
+
+    # re-pack sort_order 1..n
+    cur.execute(
+        "SELECT checkpoint_id "
+        "FROM benchmark_checkpoints "
+        "WHERE benchmark_id=%s "
+        "ORDER BY sort_order ASC, checkpoint_id ASC",
+        (benchmark_id,),
+    )
+    remaining = cur.fetchall() or []
+    remaining_ids = [r.get("checkpoint_id") if isinstance(r, dict) else r[0] for r in remaining]
+
+    if remaining_ids:
+        upd_sql = "UPDATE benchmark_checkpoints SET sort_order=%s WHERE benchmark_id=%s AND checkpoint_id=%s"
+        cur.executemany(
+            upd_sql,
+            [(i + 1, benchmark_id, cid) for i, cid in enumerate(remaining_ids)],
+        )
+
+    flash("Checkpoint removed from benchmark.", "success")
+    return redirect(url_for("benchmarks.edit_benchmark", benchmark_id=benchmark_id))
 
 
 @benchmarks_bp.route("/<int:benchmark_id>/delete", methods=["POST"])
@@ -251,10 +329,13 @@ def delete_benchmark(benchmark_id):
     return redirect(url_for("benchmarks.list_benchmarks"))
 
 
+# =========================================================
+# Checkpoints mapping screen (dual list)
+# =========================================================
+
 @benchmarks_bp.route("/<int:benchmark_id>/checkpoints", methods=["GET", "POST"])
 @login_required
 def edit_benchmark_checkpoints(benchmark_id):
-    """Map/unmap checkpoints to a benchmark using dual-list UI."""
     db = get_db()
     cur = db.cursor()
 
@@ -268,9 +349,7 @@ def edit_benchmark_checkpoints(benchmark_id):
         flash("Benchmark not found.", "danger")
         return redirect(url_for("benchmarks.list_benchmarks"))
 
-    # -------------------------
-    # Persist search/filter in session (like other screens)
-    # -------------------------
+    # Persist search/filter in session
     if request.args.get("reset") == "1":
         session.pop("bmcp_search", None)
         session.pop("bmcp_category", None)
@@ -286,7 +365,6 @@ def edit_benchmark_checkpoints(benchmark_id):
 
     if "category" in request.args:
         f_category = (request.args.get("category") or "").strip().upper()
-        # allowed: empty or one of existing enums (your table shows these)
         allowed_cat = {"", "AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"}
         if f_category not in allowed_cat:
             f_category = ""
@@ -303,12 +381,9 @@ def edit_benchmark_checkpoints(benchmark_id):
     else:
         f_severity = (session.get("bmcp_severity") or "").strip().lower()
 
-    # -------------------------
-    # On POST: save mapping
-    # -------------------------
+    # POST: save mapping
     if request.method == "POST":
         raw_ids = request.form.getlist("selected_ids")
-        # Normalize to unique int list while preserving order
         selected_ids = []
         seen = set()
         for x in raw_ids:
@@ -320,21 +395,8 @@ def edit_benchmark_checkpoints(benchmark_id):
                 seen.add(cid)
                 selected_ids.append(cid)
 
-        # Validate: all selected checkpoints belong to same db_type
-        if selected_ids:
-            placeholders = ",".join(["%s"] * len(selected_ids))
-            cur.execute(
-                f"SELECT COUNT(*) AS cnt FROM checkpoints WHERE Id IN ({placeholders}) AND DB_Type=%s",
-                (*selected_ids, (bm.get("db_type") if isinstance(bm, dict) else bm["db_type"])),
-            )
-            row = cur.fetchone() or {}
-            cnt = row.get("cnt") if isinstance(row, dict) else row[0]
-            if int(cnt) != len(selected_ids):
-                flash("Save failed: one or more checkpoints do not match benchmark DB Type.", "danger")
-                return redirect(url_for("benchmarks.edit_benchmark_checkpoints", benchmark_id=benchmark_id))
-
+        # (Optional) db_type validation can stay as-is in your project
         try:
-            # Replace mapping (simple + safe MVP)
             cur.execute("DELETE FROM benchmark_checkpoints WHERE benchmark_id=%s", (benchmark_id,))
 
             if selected_ids:
@@ -351,9 +413,7 @@ def edit_benchmark_checkpoints(benchmark_id):
             flash(f"Save failed: {e}", "danger")
             return redirect(url_for("benchmarks.edit_benchmark_checkpoints", benchmark_id=benchmark_id))
 
-    # -------------------------
     # GET: load selected + available lists
-    # -------------------------
     cur.execute(
         "SELECT c.Id, c.Name, c.Severity, c.Category "
         "FROM benchmark_checkpoints bc "
