@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+{% block title %}
+  {% if assessment %}Edit Assessment{% else %}New Assessment{% endif %} · DB Vulnerability Scan
+{% endblock %}
+{% block content %}
+<style>
+.form-wrap{background:#fff;padding:20px;border:1px solid #e6e6e6;border-radius:12px;max-width:900px;margin:auto;}
+.form-wrap label{font-size:14px;font-weight:600;display:block;margin-bottom:4px;}
+.form-wrap input[type="text"], .form-wrap select, .form-wrap textarea{
+  width:100%;padding:8px 10px;border:1px solid #d9d9d9;border-radius:8px;
+}
+.form-actions{display:flex;gap:10px;margin-top:16px;}
+.btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8;padding:8px 14px;border-radius:8px;text-decoration:none;}
+.btn-secondary{background:#fff;color:#2563eb;border:1px solid #2563eb;padding:8px 14px;border-radius:8px;text-decoration:none;}
+</style>
+
+<div class="form-wrap">
+  <form method="post">
+
+    <label>Assessment Name</label>
+    <input type="text" name="name" required value="{{ assessment.name if assessment else '' }}">
+
+    <label>Datasource</label>
+    <select name="datasource_id" required>
+      {% for d in datasources %}
+        <option value="{{ d.ds_id }}"
+          {% if assessment and assessment.datasource_id == d.ds_id %}selected{% endif %}>
+          {{ d.ds_name }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <label>Benchmark</label>
+    {% if assessment %}
+      {# Keep benchmark immutable to avoid db_type inconsistency (db_type never updates) #}
+      <input type="hidden" name="benchmark_id" value="{{ assessment.benchmark_id }}">
+      <select name="benchmark_id_display" disabled>
+        {% for b in benchmarks %}
+          <option value="{{ b.benchmark_id }}"
+            {% if assessment and assessment.benchmark_id == b.benchmark_id %}selected{% endif %}>
+            {{ b.name }}
+          </option>
+        {% endfor %}
+      </select>
+    {% else %}
+      <select name="benchmark_id" id="benchmark_id" required>
+        {% for b in benchmarks %}
+          <option value="{{ b.benchmark_id }}" data-db-type="{{ b.db_type }}">
+            {{ b.name }}
+          </option>
+        {% endfor %}
+      </select>
+    {% endif %}
+
+    <label>DB Type</label>
+    <input id="db_type" type="text" value="{{ assessment.db_type if assessment else '' }}" readonly>
+
+    <label>Status</label>
+    <select name="status">
+      <option value="active" {% if assessment and assessment.status=='active' %}selected{% endif %}>active</option>
+      <option value="inactive" {% if assessment and assessment.status=='inactive' %}selected{% endif %}>inactive</option>
+    </select>
+
+    <label>Notes</label>
+    <textarea name="notes" rows="4">{{ assessment.notes if assessment else '' }}</textarea>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save</button>
+      <a href="{{ url_for('assessments.list_assessments') }}" class="btn-secondary">Cancel</a>
+    </div>
+
+  </form>
+</div>
+
+{% if not assessment %}
+<script>
+  (function(){
+    const bm = document.getElementById('benchmark_id');
+    const dbType = document.getElementById('db_type');
+    if (!bm || !dbType) return;
+
+    function syncDbType(){
+      const opt = bm.options[bm.selectedIndex];
+      dbType.value = (opt && opt.dataset && opt.dataset.dbType) ? opt.dataset.dbType : '';
+    }
+
+    bm.addEventListener('change', syncDbType);
+    syncDbType();
+  })();
+</script>
+{% endif %}
+{% endblock %}
