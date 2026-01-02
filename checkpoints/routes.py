@@ -145,6 +145,110 @@ def evaluate_condition(result_value, condition_text):
 
 
 # =========================================================
+# ------------- CHECKPOINT SQL RUN (UI HELPERS) -----------
+# =========================================================
+
+def _fetch_checkpoint(cursor, checkpoint_id: int):
+    """Fetch checkpoint in the same shape used by templates."""
+    cursor.execute(
+        """
+        SELECT 
+            Id AS id, Name AS name, DB_Type AS db_type, Severity AS severity,
+            Category AS category,
+            Description AS description,
+            Pre_SQL_Test AS pre_sql_test,
+            SQL_Test AS sql_test,
+            Test_Condition AS test_condition,
+            Pre_SQL_Detail AS pre_sql_detail,
+            SQL_Detail AS sql_detail,
+            Text_Pass AS text_pass,
+            Text_Fail AS text_fail,
+            Notes AS notes
+        FROM checkpoints
+        WHERE Id = %s
+        """,
+        (checkpoint_id,),
+    )
+    return cursor.fetchone()
+
+
+def _fetch_datasources_for_dbtype(cursor, db_type: str):
+    """Return datasource list for select dropdown."""
+    cursor.execute(
+        """
+        SELECT
+            ds_id AS id,
+            ds_name AS name,
+            host,
+            port,
+            auth_mode,
+            domain_user_id,
+            username,
+            password,
+            database_name,
+            oracle_service_name,
+            oracle_sid
+        FROM datasources
+        WHERE db_type = %s
+        ORDER BY ds_name
+        """,
+        (db_type,),
+    )
+    return cursor.fetchall() or []
+
+
+def _fetch_datasource_by_id(cursor, datasource_id: int, db_type: str):
+    cursor.execute(
+        """
+        SELECT
+            ds_id AS id,
+            ds_name AS name,
+            host,
+            port,
+            auth_mode,
+            domain_user_id,
+            username,
+            password,
+            database_name,
+            oracle_service_name,
+            oracle_sid
+        FROM datasources
+        WHERE ds_id = %s AND db_type = %s
+        """,
+        (datasource_id, db_type),
+    )
+    return cursor.fetchone()
+
+
+def _execute_sql(conn, sql_text: str):
+    """Execute a SQL that may return rows. Returns (columns, rows)."""
+    cur = conn.cursor()
+    cur.execute(sql_text)
+
+    # Some statements don't return a result set.
+    if not getattr(cur, "description", None):
+        return [], []
+
+    cols = [c[0] for c in cur.description]
+    rows = cur.fetchall()
+    return cols, rows
+
+
+def _rows_to_dicts(columns, rows, limit: int = 200):
+    """Convert DB rows to list[dict] for Jinja template."""
+    out = []
+    for i, r in enumerate(rows):
+        if i >= limit:
+            break
+        # oracledb returns tuples, pyodbc can return tuples too.
+        if isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append({columns[j]: r[j] for j in range(len(columns))})
+    return out
+
+
+# =========================================================
 # -------------------------- LIST --------------------------
 # =========================================================
 
@@ -475,6 +579,197 @@ def edit_checkpoint(checkpoint_id):
         return redirect(url_for('checkpoints.list_checkpoints'))
 
     return render_template('checkpoints/form.html', mode='edit', checkpoint=row)
+
+
+# =========================================================
+# --------------------- RUN TEST SQL ----------------------
+# =========================================================
+
+@checkpoints_bp.route('/<int:checkpoint_id>/run_test', methods=['GET', 'POST'])
+def run_test_sql(checkpoint_id):
+    """UI helper: run checkpoint SQL_Test against a chosen datasource."""
+    db = get_db()
+    cursor = db.cursor()
+
+    checkpoint = _fetch_checkpoint(cursor, checkpoint_id)
+    if not checkpoint:
+        flash('Checkpoint bulunamadı.', 'danger')
+        return redirect(url_for('checkpoints.list_checkpoints'))
+
+    datasources = _fetch_datasources_for_dbtype(cursor, checkpoint['db_type'])
+
+    selected_ds = None
+    status = None
+    result_value = None
+    condition_expr = None
+    error_message = None
+
+    if request.method == 'POST':
+        ds_id_raw = (request.form.get('datasource_id') or '').strip()
+        if not ds_id_raw:
+            flash('Please select a datasource.', 'warning')
+        else:
+            try:
+                ds_id = int(ds_id_raw)
+            except ValueError:
+                ds_id = None
+
+            if not ds_id:
+                flash('Invalid datasource selection.', 'danger')
+            else:
+                selected_ds = _fetch_datasource_by_id(cursor, ds_id, checkpoint['db_type'])
+                if not selected_ds:
+                    flash('Datasource not found for this DB type.', 'danger')
+                else:
+                    try:
+                        conn = None
+                        # Connect
+                        if checkpoint['db_type'] == 'oracle':
+                            conn = get_oracle_connection(selected_ds)
+                        elif checkpoint['db_type'] == 'mssql':
+                            conn = get_mssql_connection(selected_ds)
+                        else:
+                            raise RuntimeError('Unsupported DB type for run_test.')
+
+                        # Optional pre SQL
+                        if checkpoint.get('pre_sql_test'):
+                            _execute_sql(conn, checkpoint['pre_sql_test'])
+
+                        # Main SQL
+                        cols, rows = _execute_sql(conn, checkpoint['sql_test'])
+
+                        # Pick first column of first row (the usual pattern)
+                        if rows and len(rows) > 0:
+                            first_row = rows[0]
+                            if isinstance(first_row, dict):
+                                # dict row (rare)
+                                result_value = list(first_row.values())[0] if first_row else None
+                            else:
+                                result_value = first_row[0] if len(first_row) else None
+                        else:
+                            result_value = None
+
+                        # Evaluate condition
+                        cond_text = (checkpoint.get('test_condition') or '').strip()
+                        if not cond_text:
+                            status = 'NO_CONDITION'
+                        else:
+                            res, err = evaluate_condition(result_value, cond_text)
+                            if err:
+                                status = 'ERROR'
+                                error_message = err
+                            else:
+                                passed, condition_expr = res
+                                status = 'PASS' if passed else 'FAIL'
+
+                    except Exception as e:
+                        status = 'ERROR'
+                        error_message = str(e)
+                    finally:
+                        try:
+                            if conn:
+                                conn.close()  # type: ignore
+                        except Exception:
+                            pass
+                        # If Kerberos (kinit) was used, clean ticket to avoid surprises.
+                        try:
+                            _kdestroy()
+                        except Exception:
+                            pass
+
+    return render_template(
+        'checkpoints/run_test.html',
+        checkpoint=checkpoint,
+        datasources=datasources,
+        selected_ds=selected_ds,
+        status=status,
+        result_value=result_value,
+        condition_expr=condition_expr,
+        error_message=error_message,
+    )
+
+
+# =========================================================
+# -------------------- RUN DETAIL SQL ---------------------
+# =========================================================
+
+@checkpoints_bp.route('/<int:checkpoint_id>/run_detail', methods=['GET', 'POST'])
+def run_detail_sql(checkpoint_id):
+    """UI helper: run checkpoint SQL_Detail against a chosen datasource."""
+    db = get_db()
+    cursor = db.cursor()
+
+    checkpoint = _fetch_checkpoint(cursor, checkpoint_id)
+    if not checkpoint:
+        flash('Checkpoint bulunamadı.', 'danger')
+        return redirect(url_for('checkpoints.list_checkpoints'))
+
+    datasources = _fetch_datasources_for_dbtype(cursor, checkpoint['db_type'])
+
+    selected_ds = None
+    status = None
+    error_message = None
+    detail_columns = []
+    detail_rows = []
+
+    if request.method == 'POST':
+        ds_id_raw = (request.form.get('datasource_id') or '').strip()
+        if not ds_id_raw:
+            flash('Please select a datasource.', 'warning')
+        else:
+            try:
+                ds_id = int(ds_id_raw)
+            except ValueError:
+                ds_id = None
+
+            if not ds_id:
+                flash('Invalid datasource selection.', 'danger')
+            else:
+                selected_ds = _fetch_datasource_by_id(cursor, ds_id, checkpoint['db_type'])
+                if not selected_ds:
+                    flash('Datasource not found for this DB type.', 'danger')
+                else:
+                    try:
+                        conn = None
+                        if checkpoint['db_type'] == 'oracle':
+                            conn = get_oracle_connection(selected_ds)
+                        elif checkpoint['db_type'] == 'mssql':
+                            conn = get_mssql_connection(selected_ds)
+                        else:
+                            raise RuntimeError('Unsupported DB type for run_detail.')
+
+                        if checkpoint.get('pre_sql_detail'):
+                            _execute_sql(conn, checkpoint['pre_sql_detail'])
+
+                        cols, rows = _execute_sql(conn, checkpoint['sql_detail'])
+                        detail_columns = cols
+                        detail_rows = _rows_to_dicts(cols, rows, limit=200)
+                        status = 'OK'
+
+                    except Exception as e:
+                        status = 'ERROR'
+                        error_message = str(e)
+                    finally:
+                        try:
+                            if conn:
+                                conn.close()  # type: ignore
+                        except Exception:
+                            pass
+                        try:
+                            _kdestroy()
+                        except Exception:
+                            pass
+
+    return render_template(
+        'checkpoints/run_detail.html',
+        checkpoint=checkpoint,
+        datasources=datasources,
+        selected_ds=selected_ds,
+        status=status,
+        error_message=error_message,
+        detail_columns=detail_columns,
+        detail_rows=detail_rows,
+    )
 
 
 # =========================================================

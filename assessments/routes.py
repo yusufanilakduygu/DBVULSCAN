@@ -1,5 +1,6 @@
-from flask import render_template, request, redirect, url_for, session
+from flask import flash, redirect, render_template, request, session, url_for
 from db import get_db
+from run_assessment import run_assessment
 from . import assessments_bp
 
 
@@ -149,3 +150,29 @@ def edit_assessment(assessment_id):
         datasources=datasources,
         benchmarks=benchmarks
     )
+
+
+# =========================================================
+# ---------------------- RUN ASSESSMENT --------------------
+# =========================================================
+
+@assessments_bp.route("/run/<int:assessment_id>", methods=["POST"])
+def run_assessment_action(assessment_id: int):
+    """Run button handler (no extra pages).
+
+    - Trigger run_assessment(assessment_id)
+    - Stay on the same page (redirect back)
+    - Show a flash message with the new run_id
+    """
+
+    if "user" not in session:
+        return redirect(url_for("auth.login"))
+
+    try:
+        run_id, run_month = run_assessment(assessment_id)
+        flash(f"Assessment executed. Run ID: {run_id} (month: {run_month})", "success")
+    except Exception as e:
+        flash(f"Run failed: {e}", "danger")
+
+    # Go back to the list page (keep filters/search in URL if user came from there)
+    return redirect(request.referrer or url_for("assessments.list_assessments"))

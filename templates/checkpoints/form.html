@@ -114,6 +114,15 @@ textarea{min-height:90px;}
 
     <div class="form-buttons">
       <button type="submit" class="btn-std btn-save">Save</button>
+
+      {# Only show SQL run buttons on Edit screen (checkpoint must have an id) #}
+      {% if mode == 'edit' and checkpoint and checkpoint.id is defined %}
+        <a href="{{ url_for('checkpoints.run_test_sql', checkpoint_id=checkpoint.id) }}"
+           class="btn-std btn-back">Run Test SQL</a>
+        <a href="{{ url_for('checkpoints.run_detail_sql', checkpoint_id=checkpoint.id) }}"
+           class="btn-std btn-back">Run Detail SQL</a>
+      {% endif %}
+
       <a href="{{ url_for('checkpoints.list_checkpoints') }}" class="btn-std btn-back">Back to Checkpoints</a>
     </div>
   </form>

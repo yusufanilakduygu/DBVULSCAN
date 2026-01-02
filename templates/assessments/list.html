@@ -26,6 +26,13 @@
 @media (max-width: 980px){
   .ds-head{flex-direction:column;align-items:flex-start;}
 }
+
+/* Disabled button look (no backend yet) */
+.btn-disabled{
+  opacity: .55;
+  cursor: not-allowed;
+  pointer-events: none; /* prevents click */
+}
 </style>
 
 <div class="ds-wrap">
@@ -95,8 +102,14 @@
           <td>{{ a.updated_at }}</td>
           <td>
             <div class="row-actions">
-              <a href="#" class="btn-secondary">Run Assessment</a>
-              <a href="#" class="btn-secondary">Show Assessment Result</a>
+              <form method="post" action="{{ url_for('assessments.run_assessment_action', assessment_id=a.assessment_id) }}" style="display:inline;">
+                <button type="submit" class="btn-secondary" style="cursor:pointer;">Run Assessment</button>
+              </form>
+
+              <!-- Placeholder: feature will be implemented later -->
+              <a class="btn-secondary btn-disabled" href="#" aria-disabled="true" title="Coming soon">
+                Show Assessments
+              </a>
             </div>
           </td>
         </tr>
