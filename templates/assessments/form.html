@@ -5,6 +5,7 @@
 {% block content %}
 <style>
 .form-wrap{background:#fff;padding:20px;border:1px solid #e6e6e6;border-radius:12px;max-width:900px;margin:auto;}
+.form-title{font-size:18px;font-weight:800;margin-bottom:14px;color:#111827;}
 .form-wrap label{font-size:14px;font-weight:600;display:block;margin-bottom:4px;}
 .form-wrap input[type="text"], .form-wrap select, .form-wrap textarea{
   width:100%;padding:8px 10px;border:1px solid #d9d9d9;border-radius:8px;
@@ -15,6 +16,10 @@
 </style>
 
 <div class="form-wrap">
+  <div class="form-title">
+    {% if assessment %}Edit Assessment{% else %}New Assessment{% endif %}
+  </div>
+
   <form method="post">
 
     <label>Assessment Name</label>
@@ -54,6 +59,15 @@
 
     <label>DB Type</label>
     <input id="db_type" type="text" value="{{ assessment.db_type if assessment else '' }}" readonly>
+
+    <label>Asset Impact</label>
+    <select name="asset_impact" required>
+      <option value="critical" {% if assessment and assessment.asset_impact=='critical' %}selected{% elif not assessment and (request.form.get('asset_impact','medium')=='critical') %}selected{% endif %}>critical</option>
+      <option value="high" {% if assessment and assessment.asset_impact=='high' %}selected{% elif not assessment and (request.form.get('asset_impact','medium')=='high') %}selected{% endif %}>high</option>
+      <option value="medium" {% if (assessment and (assessment.asset_impact=='medium' or not assessment.asset_impact)) or (not assessment and (request.form.get('asset_impact','medium')=='medium')) %}selected{% endif %}>medium</option>
+      <option value="low" {% if assessment and assessment.asset_impact=='low' %}selected{% elif not assessment and (request.form.get('asset_impact','medium')=='low') %}selected{% endif %}>low</option>
+      <option value="very_low" {% if assessment and assessment.asset_impact=='very_low' %}selected{% elif not assessment and (request.form.get('asset_impact','medium')=='very_low') %}selected{% endif %}>very_low</option>
+    </select>
 
     <label>Status</label>
     <select name="status">

@@ -10,6 +10,7 @@ def list_assessments():
         session.pop("assessments_q", None)
         session.pop("assessments_status", None)
         session.pop("assessments_db_type", None)
+        session.pop("assessments_asset_impact", None)
         return redirect(url_for("assessments.list_assessments"))
 
     def _get_persisted(key, default=""):
@@ -22,6 +23,7 @@ def list_assessments():
     search = _get_persisted("q", "")
     f_status = _get_persisted("status", "")
     f_db_type = _get_persisted("db_type", "")
+    f_asset_impact = _get_persisted("asset_impact", "")
 
     db = get_db()
     cur = db.cursor()
@@ -41,13 +43,17 @@ def list_assessments():
         conditions.append("db_type = %s")
         params.append(f_db_type)
 
+    if f_asset_impact:
+        conditions.append("asset_impact = %s")
+        params.append(f_asset_impact)
+
     where_clause = ""
     if conditions:
         where_clause = "WHERE " + " AND ".join(conditions)
 
     sql = f"""
         SELECT assessment_id, name, datasource_name,
-               benchmark_name, db_type, status, updated_at
+               benchmark_name, db_type, asset_impact, status, updated_at
         FROM assessments
         {where_clause}
         ORDER BY updated_at DESC
@@ -60,7 +66,8 @@ def list_assessments():
         assessments=assessments,
         search=search,
         f_status=f_status,
-        f_db_type=f_db_type
+        f_db_type=f_db_type,
+        f_asset_impact=f_asset_impact
     )
 
 
@@ -74,6 +81,7 @@ def new_assessment():
         datasource_id = request.form["datasource_id"]
         benchmark_id = request.form["benchmark_id"]
         status = request.form["status"]
+        asset_impact = request.form.get("asset_impact", "medium")
         notes = request.form.get("notes")
 
         cur.execute("SELECT ds_name FROM datasources WHERE ds_id=%s", (datasource_id,))
@@ -87,13 +95,14 @@ def new_assessment():
             INSERT INTO assessments
             (name, datasource_id, datasource_name,
              benchmark_id, benchmark_name, db_type,
-             status, notes)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+             asset_impact, status, notes)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 name,
                 datasource_id, ds["ds_name"],
                 benchmark_id, bm["name"], bm["db_type"],
+                asset_impact,
                 status, notes
             )
         )
@@ -103,7 +112,7 @@ def new_assessment():
     cur.execute("SELECT ds_id, ds_name FROM datasources ORDER BY ds_name")
     datasources = cur.fetchall()
 
-    cur.execute("SELECT benchmark_id, name FROM benchmarks ORDER BY name")
+    cur.execute("SELECT benchmark_id, name, db_type FROM benchmarks ORDER BY name")
     benchmarks = cur.fetchall()
 
     return render_template(
@@ -122,15 +131,16 @@ def edit_assessment(assessment_id):
     if request.method == "POST":
         name = request.form["name"]
         status = request.form["status"]
+        asset_impact = request.form.get("asset_impact", "medium")
         notes = request.form.get("notes")
 
         cur.execute(
             """
             UPDATE assessments
-            SET name=%s, status=%s, notes=%s
+            SET name=%s, asset_impact=%s, status=%s, notes=%s
             WHERE assessment_id=%s
             """,
-            (name, status, notes, assessment_id)
+            (name, asset_impact, status, notes, assessment_id)
         )
         db.commit()
         return redirect(url_for("assessments.list_assessments"))
@@ -141,7 +151,7 @@ def edit_assessment(assessment_id):
     cur.execute("SELECT ds_id, ds_name FROM datasources ORDER BY ds_name")
     datasources = cur.fetchall()
 
-    cur.execute("SELECT benchmark_id, name FROM benchmarks ORDER BY name")
+    cur.execute("SELECT benchmark_id, name, db_type FROM benchmarks ORDER BY name")
     benchmarks = cur.fetchall()
 
     return render_template(

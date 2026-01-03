@@ -45,6 +45,7 @@
         <input type="text" name="q" placeholder="Search assessments..." value="{{ search or '' }}">
         <input type="hidden" name="status" value="{{ f_status or '' }}">
         <input type="hidden" name="db_type" value="{{ f_db_type or '' }}">
+        <input type="hidden" name="asset_impact" value="{{ f_asset_impact or '' }}">
       </form>
     </div>
 
@@ -65,6 +66,16 @@
           <option value="mssql" {% if f_db_type=='mssql' %}selected{% endif %}>mssql</option>
         </select>
 
+
+        <select name="asset_impact" onchange="this.form.submit()">
+          <option value="">Asset Impact (All)</option>
+          <option value="critical" {% if f_asset_impact=='critical' %}selected{% endif %}>critical</option>
+          <option value="high" {% if f_asset_impact=='high' %}selected{% endif %}>high</option>
+          <option value="medium" {% if f_asset_impact=='medium' %}selected{% endif %}>medium</option>
+          <option value="low" {% if f_asset_impact=='low' %}selected{% endif %}>low</option>
+          <option value="very_low" {% if f_asset_impact=='very_low' %}selected{% endif %}>very_low</option>
+        </select>
+
         <a class="btn-link" href="{{ url_for('assessments.list_assessments', reset=1) }}">Reset</a>
       </form>
     </div>
@@ -82,6 +93,7 @@
           <th>Datasource</th>
           <th>Benchmark</th>
           <th>DB Type</th>
+          <th>Asset Impact</th>
           <th>Status</th>
           <th>Updated</th>
           <th>Actions</th>
@@ -98,6 +110,7 @@
           <td>{{ a.datasource_name }}</td>
           <td>{{ a.benchmark_name }}</td>
           <td>{{ a.db_type }}</td>
+          <td>{{ a.asset_impact }}</td>
           <td>{{ a.status }}</td>
           <td>{{ a.updated_at }}</td>
           <td>
@@ -115,7 +128,7 @@
         </tr>
       {% else %}
         <tr>
-          <td colspan="7" style="color:#6b7280;">No assessments found.</td>
+          <td colspan="8" style="color:#6b7280;">No assessments found.</td>
         </tr>
       {% endfor %}
       </tbody>
