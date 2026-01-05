@@ -5,13 +5,14 @@ from datetime import timedelta
 from config import SECRET_KEY
 from auth import auth_bp             # login/logout blueprint
 from users import users_bp           # users CRUD blueprint
-from db import get_db, get_version_line   # MySQL bağlantısı 
+from db import get_db, get_version_line   # MySQL bağlantısı
 from datasources import datasources_bp    # datasources blueprint
 from checkpoints import checkpoints_bp    # checkpoints blueprint
 from domainusers import domainusers_bp    # domain users blueprint
 from settings import settings_bp     # settings CRUD blueprint
 from benchmarks import benchmarks_bp
 from assessments import assessments_bp
+from assessment_runs import assessment_runs_bp
 
 
 def get_setting_value(key):
@@ -44,12 +45,9 @@ def create_app():
     app.secret_key = SECRET_KEY
     app.permanent_session_lifetime = timedelta(hours=8)
     app.config["TEMPLATES_AUTO_RELOAD"] = True
-    
+
     # Kerberos config path'ini settings'ten oku ve ortama yaz
     krb_path = get_setting_value("krb5_config_path")
-    if krb_path:
-        os.environ["KRB5_CONFIG"] = krb_path
-
     if krb_path:
         os.environ["KRB5_CONFIG"] = krb_path
         print("[DBVULSCAN] KRB5_CONFIG env set to:", os.environ.get("KRB5_CONFIG"))
@@ -66,6 +64,8 @@ def create_app():
     app.register_blueprint(benchmarks_bp, url_prefix="/benchmarks")
     app.register_blueprint(assessments_bp, url_prefix="/assessments")
 
+    # ✅ KRİTİK: Assessment Runs (Assessment Results) blueprint’i register et
+    app.register_blueprint(assessment_runs_bp, url_prefix="/assessment-results")
 
     # Her şablonda current_user ve current_role otomatik görün (session tabanlı)
     @app.context_processor
@@ -82,14 +82,14 @@ def create_app():
         # Login yapılmamışsa login ekranına yönlendir
         if "user" not in session:
             return redirect(url_for("auth.login"))
-            
-        version_line = get_version_line()    
-        return render_template("index.html",version_line=version_line)
+
+        version_line = get_version_line()
+        return render_template("index.html", version_line=version_line)
 
     return app
+
 
 app = create_app()
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
-

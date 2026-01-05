@@ -198,22 +198,22 @@
           </div>
         </div>
 
-        <!-- Security Reports -->
+        <!-- Assessment Reports -->
         <div class="acc-group">
-          <div class="acc-title" data-acc="sr">Security Reports</div>
+          <div class="acc-title" data-acc="sr">Assessment Reports</div>
           <div class="acc-panel" id="acc-sr">
             <div class="menu">
-              <a href="/queries"
-                 class="{% if request.path.startswith('/queries') %}active{% endif %}">
-                Queries
+              <a href="/assessment-results"
+                 class="{% if request.path.startswith('/assessment-results') %}active{% endif %}">
+                Assessment Results
               </a>
-              <a href="/querysets"
-                 class="{% if request.path.startswith('/querysets') %}active{% endif %}">
-                QuerySets
+              <a href="/change-reports"
+                 class="{% if request.path.startswith('/change-reports') %}active{% endif %}">
+                Change Reports
               </a>
-              <a href="/reports"
-                 class="{% if request.path.startswith('/reports') %}active{% endif %}">
-                Reports
+              <a href="/graphic-analysis"
+                 class="{% if request.path.startswith('/graphic-analysis') %}active{% endif %}">
+                Grafic Analysis
               </a>
             </div>
           </div>

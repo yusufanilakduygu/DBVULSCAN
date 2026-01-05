@@ -1,0 +1,146 @@
+# -*- coding: utf-8 -*-
+from __future__ import annotations
+
+from datetime import datetime
+from math import ceil
+from typing import Any, Dict, List
+
+from flask import redirect, render_template, request, session, url_for
+
+from db import get_db
+from . import assessment_runs_bp
+
+PAGE_SIZE = 10
+
+
+def _normalize_date(s: str) -> str:
+    # Expect YYYY-MM-DD; return '' if invalid
+    if not s:
+        return ""
+    try:
+        datetime.strptime(s, "%Y-%m-%d")
+        return s
+    except Exception:
+        return ""
+
+
+def _get_persisted_filters() -> Dict[str, str]:
+    # Persist filters in session; update from request.args when provided.
+    keys = [
+        "start_date",
+        "end_date",
+        "run_id",
+        "db_type",
+        "status",
+        "risk_level",
+        "asset_adjusted_risk_level",
+    ]
+    store_key = "assessment_runs_filters"
+    saved = session.get(store_key, {}) if isinstance(session.get(store_key), dict) else {}
+    out: Dict[str, str] = {k: (saved.get(k, "") or "") for k in keys}
+
+    touched = False
+    for k in keys:
+        if k in request.args:
+            val = (request.args.get(k, "") or "").strip()
+            if k in ("start_date", "end_date"):
+                val = _normalize_date(val)
+            out[k] = val
+            touched = True
+
+    if touched:
+        session[store_key] = out
+
+    return out
+
+
+@assessment_runs_bp.route("", methods=["GET"])
+@assessment_runs_bp.route("/", methods=["GET"])
+def list_assessment_runs():
+    # Reset filters
+    if request.args.get("reset") == "1":
+        session.pop("assessment_runs_filters", None)
+        return redirect(url_for("assessment_runs.list_assessment_runs"))
+
+    f = _get_persisted_filters()
+
+    # Pagination
+    try:
+        page = int(request.args.get("page", "1"))
+    except Exception:
+        page = 1
+    if page < 1:
+        page = 1
+
+    where: List[str] = []
+    params: List[Any] = []
+
+    # executed_at range (date inputs)
+    if f["start_date"]:
+        where.append("executed_at >= %s")
+        params.append(f["start_date"] + " 00:00:00")
+    if f["end_date"]:
+        where.append("executed_at <= %s")
+        params.append(f["end_date"] + " 23:59:59")
+
+    # run_id (exact)
+    if f["run_id"]:
+        where.append("run_id = %s")
+        params.append(f["run_id"])
+
+    # enums
+    if f["db_type"]:
+        where.append("db_type = %s")
+        params.append(f["db_type"])
+    if f["status"]:
+        where.append("status = %s")
+        params.append(f["status"])
+    if f["risk_level"]:
+        where.append("risk_level = %s")
+        params.append(f["risk_level"])
+    if f["asset_adjusted_risk_level"]:
+        where.append("asset_adjusted_risk_level = %s")
+        params.append(f["asset_adjusted_risk_level"])
+
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+
+        # Count
+        cur.execute("SELECT COUNT(*) AS cnt FROM assessment_runs" + where_sql, params)
+        total_records = int(cur.fetchone()["cnt"] or 0)
+
+        total_pages = max(1, int(ceil(total_records / PAGE_SIZE))) if total_records else 1
+        if page > total_pages:
+            page = total_pages
+
+        offset = (page - 1) * PAGE_SIZE
+
+        # Data (✅ error_count eklendi)
+        sql = (
+            "SELECT run_id, assessment_name, db_type, status, total_count, success_count, fail_count, error_count, "
+            "success_pct, risk, risk_level, asset_adjusted_risk, asset_adjusted_risk_level, executed_at "
+            "FROM assessment_runs"
+            + where_sql
+            + " ORDER BY executed_at DESC "
+            + "LIMIT %s OFFSET %s"
+        )
+        cur.execute(sql, params + [PAGE_SIZE, offset])
+        rows = cur.fetchall()
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+    return render_template(
+        "assessment_runs/list.html",
+        rows=rows,
+        filters=f,
+        page=page,
+        page_size=PAGE_SIZE,
+        total_records=total_records,
+        total_pages=total_pages,
+    )
