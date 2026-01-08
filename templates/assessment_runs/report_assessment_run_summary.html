@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Assessment Run Summary Report</title>
+  {% if css_href %}
+  <link rel="stylesheet" href="{{ css_href }}">
+  {% endif %}
+</head>
+
+<body>
+  <div class="report">
+
+    <h1 class="report-title">Assessment Run Summary Report</h1>
+
+    <!-- Assessment Info -->
+    <div class="box-title">Assessment Info</div>
+    <div class="summary-box shadow-box">
+      <div class="kv">
+        <div class="kv-row"><div class="kv-key">Runid</div><div class="kv-sep">:</div><div class="kv-val">{{ r.run_id }}</div></div>
+        <div class="kv-row"><div class="kv-key">Report Execution Date</div><div class="kv-sep">:</div><div class="kv-val">{{ r.executed_at }}</div></div>
+
+        <!-- Status: success -> Successful (report language) + colored badge -->
+        <div class="kv-row">
+          <div class="kv-key">Assessment Status</div><div class="kv-sep">:</div>
+          <div class="kv-val">
+            {% set st = (r.status or '')|lower %}
+            {% if st == 'success' %}
+              <span class="status status-success">Successful</span>
+            {% elif st == 'fail' %}
+              <span class="status status-fail">Failed</span>
+            {% elif st == 'error' %}
+              <span class="status status-error">Error</span>
+            {% else %}
+              <span class="status status-other">{{ (r.status or '')|title }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="kv-row"><div class="kv-key">Assessment Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.assessment_name }}</div></div>
+        <div class="kv-row"><div class="kv-key">Db Type</div><div class="kv-sep">:</div><div class="kv-val">{{ r.db_type }}</div></div>
+        <div class="kv-row"><div class="kv-key">Datasource Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.datasource_name }}</div></div>
+        <div class="kv-row"><div class="kv-key">Benchmark Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.benchmark_name }}</div></div>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="section">
+      <div class="section-title">Metrics</div>
+      <div class="table-wrap shadow-box">
+        <table class="tbl tbl-metrics">
+          <thead>
+            <tr>
+              <th class="th-multi">Total<br>Checkpoints</th>
+              <th class="th-multi">Passed<br>Checkpoints</th>
+              <th class="th-multi">Failed<br>Checkpoints</th>
+              <th class="th-multi">Checkpoints<br>with Errors</th>
+              <th class="th-multi">Success Rate<br>(%)</th>
+              <th class="th-multi">Standard<br>Risk</th>
+              <th class="th-multi">Asset-Adjusted<br>Risk</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{{ r.total_count }}</td>
+              <td>{{ r.success_count }}</td>
+              <td>{{ r.fail_count }}</td>
+              <td>{{ r.error_count }}</td>
+              <td>{{ r.success_pct }}</td>
+              <td>{{ r.risk }}</td>
+              <td>{{ r.asset_adjusted_risk }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Risk Levels -->
+    <div class="section">
+      <div class="section-title">Risk Levels</div>
+
+      {% set rl = (r.risk_level or '')|lower %}
+      {% set arl = (r.asset_adjusted_risk_level or '')|lower %}
+
+      <div class="risk-box shadow-box">
+        <div class="risk-block">
+          <div class="risk-line">
+            <span class="risk-label">Standard<br>Risk Level</span>
+            <span class="risk-sep">:</span>
+            <span class="risk-value">
+              {% if rl == 'low' %}<span class="lvl lvl-low">{{ r.risk_level }}</span>
+              {% elif rl == 'medium' %}<span class="lvl lvl-medium">{{ r.risk_level }}</span>
+              {% elif rl == 'high' %}<span class="lvl lvl-high">{{ r.risk_level }}</span>
+              {% elif rl == 'critical' %}<span class="lvl lvl-critical">{{ r.risk_level }}</span>
+              {% else %}{{ r.risk_level }}{% endif %}
+            </span>
+          </div>
+          {% if r.risk_level_desc %}
+          <div class="risk-desc">{{ r.risk_level_desc }}</div>
+          {% endif %}
+        </div>
+
+        <div class="risk-separator"></div>
+
+        <div class="risk-block">
+          <div class="risk-line">
+            <span class="risk-label">Asset-Adjusted<br>Risk Level</span>
+            <span class="risk-sep">:</span>
+            <span class="risk-value">
+              {% if arl == 'low' %}<span class="lvl lvl-low">{{ r.asset_adjusted_risk_level }}</span>
+              {% elif arl == 'medium' %}<span class="lvl lvl-medium">{{ r.asset_adjusted_risk_level }}</span>
+              {% elif arl == 'high' %}<span class="lvl lvl-high">{{ r.asset_adjusted_risk_level }}</span>
+              {% elif arl == 'critical' %}<span class="lvl lvl-critical">{{ r.asset_adjusted_risk_level }}</span>
+              {% else %}{{ r.asset_adjusted_risk_level }}{% endif %}
+            </span>
+          </div>
+          {% if r.asset_risk_level_desc %}
+          <div class="risk-desc">{{ r.asset_risk_level_desc }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Checkpoints -->
+    <div class="section">
+      <div class="section-title">Checkpoint Test Results</div>
+
+      <div class="table-wrap shadow-box">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th class="col-id">#</th>
+              <th>Checkpoint Name</th>
+              <th class="col-sev">Severity</th>
+              <th class="col-cat">Category</th>
+              <th class="col-res">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in cp_rows %}
+            {% set sev = (c.checkpoint_severity or '')|lower %}
+            {% set tr = (c.test_result or '')|lower %}
+            <tr>
+              <td>{{ c.run_checkpoint_id }}</td>
+              <td class="checkpoint-name">{{ c.checkpoint_name }}</td>
+
+              <!-- Severity colored (mat palette) -->
+              <td>
+                {% if sev == 'critical' %}<span class="sev sev-critical">Critical</span>
+                {% elif sev == 'major' %}<span class="sev sev-major">Major</span>
+                {% elif sev == 'minor' %}<span class="sev sev-minor">Minor</span>
+                {% elif sev == 'caution' %}<span class="sev sev-caution">Caution</span>
+                {% else %}{{ (c.checkpoint_severity or '')|title }}{% endif %}
+              </td>
+
+              <td>{{ c.checkpoint_category }}</td>
+
+              <!-- Result: Pass/Fail/Error (Fail red) -->
+              <td>
+                {% if tr == 'fail' %}
+                  <span class="res-fail">Fail</span>
+                {% elif tr == 'pass' %}
+                  Pass
+                {% elif tr == 'error' %}
+                  Error
+                {% else %}
+                  {{ (c.test_result or '')|title }}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

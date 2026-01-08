@@ -1,0 +1,183 @@
+{% extends "layout.html" %}
+{% block title %}Assessment Run Detail · DB Vulnerability Scan{% endblock %}
+{% block content %}
+<style>
+/* Container */
+.form-wrap{
+  background:#fff;
+  padding:20px;
+  border:1px solid #e6e6e6;
+  border-radius:12px;
+  max-width:1100px;
+  margin:auto;
+}
+.form-wrap h2{
+  margin:0 0 18px 0;
+  font-size:22px;
+  font-weight:800;
+  color:#0f172a;
+}
+
+/* Layout grid: 12 columns => çok esnek */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(12, 1fr);
+  gap:14px 16px;
+}
+
+/* Field blocks */
+.field label{
+  display:block;
+  font-size:14px;
+  font-weight:600;
+  color:#0f172a;
+  margin-bottom:6px;
+  text-transform:lowercase; /* resimdeki gibi */
+}
+.field input{
+  width:100%;
+  padding:10px 12px;
+  border:1px solid #d9d9d9;
+  border-radius:10px;
+  font-size:14px;
+  background:#f8fafc;
+  color:#0f172a;
+}
+.field input[readonly]{ cursor:default; }
+
+/* Column spans (tek tek oynayabilmen için) */
+.span-12{ grid-column: span 12; }
+.span-9 { grid-column: span 9; }
+.span-8 { grid-column: span 8; }
+.span-6 { grid-column: span 6; }
+.span-4 { grid-column: span 4; }
+.span-3 { grid-column: span 3; }
+
+/* Buttons */
+.actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:18px;
+}
+.btn{
+  display:inline-block;
+  padding:10px 14px;
+  border-radius:10px;
+  text-decoration:none;
+  font-size:15px;
+  border:1px solid #2563eb;
+}
+.btn-primary{
+  background:#2563eb;
+  color:#fff;
+  border-color:#1d4ed8;
+}
+.btn-primary:hover{ background:#1d4ed8; }
+.btn-outline{
+  background:#fff;
+  color:#2563eb;
+}
+.btn-outline:hover{ background:#f8fafc; }
+
+/* Responsive */
+@media (max-width: 900px){
+  .span-9,.span-8,.span-6,.span-4,.span-3{ grid-column: span 12; }
+}
+</style>
+
+<div class="form-wrap">
+  <h2>Assessment Run Detail</h2>
+
+  <div class="grid">
+
+    <!-- Row 1 -->
+    <div class="field span-12 field-assessment-name">
+      <label>assessment_name</label>
+      <input type="text" value="{{ r.assessment_name }}" readonly>
+    </div>
+
+    <!-- Row 2 (datasource left wide, db_type right narrow) -->
+    <div class="field span-9 field-datasource-name">
+      <label>datasource_name</label>
+      <input type="text" value="{{ r.datasource_name }}" readonly>
+    </div>
+
+    <div class="field span-3 field-db-type">
+      <label>db_type</label>
+      <input type="text" value="{{ r.db_type }}" readonly>
+    </div>
+
+    <!-- Row 3 -->
+    <div class="field span-12 field-benchmark-name">
+      <label>benchmark_name</label>
+      <input type="text" value="{{ r.benchmark_name }}" readonly>
+    </div>
+
+    <!-- Row 4 (4 küçük kutu) -->
+    <div class="field span-3 field-total-count">
+      <label>total_count</label>
+      <input type="text" value="{{ r.total_count }}" readonly>
+    </div>
+
+    <div class="field span-3 field-success-count">
+      <label>success_count</label>
+      <input type="text" value="{{ r.success_count }}" readonly>
+    </div>
+
+    <div class="field span-3 field-fail-count">
+      <label>fail_count</label>
+      <input type="text" value="{{ r.fail_count }}" readonly>
+    </div>
+
+    <div class="field span-3 field-error-count">
+      <label>error_count</label>
+      <input type="text" value="{{ r.error_count }}" readonly>
+    </div>
+
+    <!-- Row 5 (success_pct tek başına solda gibi) -->
+    <div class="field span-3 field-success-pct">
+      <label>success_pct</label>
+      <input type="text" value="{{ r.success_pct }}" readonly>
+    </div>
+    <div class="field span-9"></div>
+
+    <!-- Row 6 (risk + risk_level) -->
+    <div class="field span-3 field-risk">
+      <label>risk</label>
+      <input type="text" value="{{ r.risk }}" readonly>
+    </div>
+
+    <div class="field span-3 field-risk-level">
+      <label>risk_level</label>
+      <input type="text" value="{{ r.risk_level }}" readonly>
+    </div>
+    <div class="field span-6"></div>
+
+    <!-- Row 7 (asset adjusted) -->
+    <div class="field span-3 field-asset-adjusted-risk">
+      <label>asset_adjusted_risk</label>
+      <input type="text" value="{{ r.asset_adjusted_risk }}" readonly>
+    </div>
+
+    <div class="field span-3 field-asset-adjusted-risk-level">
+      <label>asset_adjusted_risk_level</label>
+      <input type="text" value="{{ r.asset_adjusted_risk_level }}" readonly>
+    </div>
+    <div class="field span-6"></div>
+
+  </div>
+
+  <!-- Buttons bottom -->
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('assessment_runs.list_assessment_runs') }}">Back</a>
+    <a class="btn btn-outline" href="{{ url_for('assessment_runs.checkpoints_list', run_id=r.run_id) }}">Checkpoints</a>
+    <a class="btn btn-outline" href="{{ url_for('assessment_runs.metrics_list', run_id=r.run_id) }}">Metrics</a>
+
+    <!-- Report button (now PDF-only) -->
+    <a class="btn btn-outline" href="{{ url_for('assessment_runs.report_assessment_run_summary', run_id=r.run_id) }}">
+      Assessment Run Summary Report
+    </a>
+  </div>
+</div>
+{% endblock %}

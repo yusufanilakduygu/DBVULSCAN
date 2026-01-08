@@ -1,0 +1,128 @@
+{% extends "layout.html" %}
+{% block title %}Run Checkpoints · DB Vulnerability Scan{% endblock %}
+{% block content %}
+<style>
+.ds-wrap{background:#fff;border:1px solid #e5e9f2;border-radius:12px;}
+.ds-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e9f2;flex-wrap:wrap;gap:10px;}
+.ds-title{font-weight:800;}
+.ds-meta{font-size:12px;color:#64748b;}
+.ds-actions a.btn{display:inline-block;padding:8px 12px;border-radius:8px;text-decoration:none;}
+.btn-secondary{background:#fff;color:#2563eb;border:1px solid #2563eb;}
+.btn-secondary:hover{background:#f8fafc;}
+.ds-table{width:100%;border-collapse:collapse;}
+.ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
+.ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;white-space:nowrap;}
+.filters{display:flex;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #eef2f7;background:#fff;}
+.filters select{border:1px solid #e5e9f2;border-radius:8px;padding:7px 10px;font-size:14px;background:#fff;}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;gap:10px;flex-wrap:wrap;}
+.pager a{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;text-decoration:none;color:#0f172a;background:#fff;}
+.pager a:hover{background:#f8fafc;}
+.pager .nums{display:flex;gap:6px;flex-wrap:wrap;}
+.pager .active{background:#2563eb;color:#fff;border-color:#1d4ed8;}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #e5e9f2;background:#f8fafc;}
+.link{color:#2563eb;text-decoration:none;font-weight:700;}
+.link:hover{text-decoration:underline;}
+</style>
+
+<div class="ds-wrap">
+  <div class="ds-head">
+    <div>
+      <div class="ds-title">Run Checkpoints</div>
+      <div class="ds-meta">
+        run_id: {{ run.run_id }} · {{ run.assessment_name }} · executed_at: {{ run.executed_at }}
+        <br>
+        Page {{ page }} / {{ total_pages }} · Records: {{ total_records }}
+      </div>
+    </div>
+    <div class="ds-actions">
+      <a class="btn btn-secondary" href="{{ url_for('assessment_runs.run_detail', run_id=run.run_id) }}">Back</a>
+      <a class="btn btn-secondary" href="{{ url_for('assessment_runs.checkpoints_list', run_id=run.run_id, reset=1) }}">Reset</a>
+    </div>
+  </div>
+
+  <div class="filters">
+    <form method="get" action="{{ url_for('assessment_runs.checkpoints_list', run_id=run.run_id) }}">
+      <select name="severity" onchange="this.form.submit()">
+        <option value="">Severity (All)</option>
+        <option value="caution" {% if filters.severity=='caution' %}selected{% endif %}>caution</option>
+        <option value="minor" {% if filters.severity=='minor' %}selected{% endif %}>minor</option>
+        <option value="major" {% if filters.severity=='major' %}selected{% endif %}>major</option>
+        <option value="critical" {% if filters.severity=='critical' %}selected{% endif %}>critical</option>
+      </select>
+
+      <select name="category" onchange="this.form.submit()">
+        <option value="">Category (All)</option>
+        <option value="AUTH" {% if filters.category=='AUTH' %}selected{% endif %}>AUTH</option>
+        <option value="PRIV" {% if filters.category=='PRIV' %}selected{% endif %}>PRIV</option>
+        <option value="CONFIG" {% if filters.category=='CONFIG' %}selected{% endif %}>CONFIG</option>
+        <option value="PATCH" {% if filters.category=='PATCH' %}selected{% endif %}>PATCH</option>
+        <option value="AUDIT" {% if filters.category=='AUDIT' %}selected{% endif %}>AUDIT</option>
+        <option value="ENCRYPT" {% if filters.category=='ENCRYPT' %}selected{% endif %}>ENCRYPT</option>
+        <option value="ACCOUNT" {% if filters.category=='ACCOUNT' %}selected{% endif %}>ACCOUNT</option>
+        <option value="OTHER" {% if filters.category=='OTHER' %}selected{% endif %}>OTHER</option>
+      </select>
+
+      <select name="result" onchange="this.form.submit()">
+        <option value="">Result (All)</option>
+        <option value="pass" {% if filters.result=='pass' %}selected{% endif %}>pass</option>
+        <option value="fail" {% if filters.result=='fail' %}selected{% endif %}>fail</option>
+        <option value="error" {% if filters.result=='error' %}selected{% endif %}>error</option>
+      </select>
+
+      <button type="submit" style="display:none;"></button>
+    </form>
+  </div>
+
+  <table class="ds-table">
+    <thead>
+      <tr>
+        <th>checkpoint_name</th>
+        <th>checkpoint_severity</th>
+        <th>checkpoint_category</th>
+        <th>test_result</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>
+          <a class="link" href="{{ url_for('assessment_runs.checkpoint_detail', run_id=run.run_id, run_checkpoint_id=r.run_checkpoint_id) }}">
+            {{ r.checkpoint_name }}
+          </a>
+        </td>
+        <td><span class="badge">{{ r.checkpoint_severity }}</span></td>
+        <td><span class="badge">{{ r.checkpoint_category }}</span></td>
+        <td><span class="badge">{{ r.test_result }}</span></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4" style="padding:16px;color:#64748b;">No records found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="pager">
+    <div>
+      {% if page > 1 %}
+        <a href="{{ url_for('assessment_runs.checkpoints_list', run_id=run.run_id, page=page-1,
+                            severity=filters.severity, category=filters.category, result=filters.result) }}">Prev</a>
+      {% endif %}
+      {% if page < total_pages %}
+        <a href="{{ url_for('assessment_runs.checkpoints_list', run_id=run.run_id, page=page+1,
+                            severity=filters.severity, category=filters.category, result=filters.result) }}">Next</a>
+      {% endif %}
+    </div>
+
+    <div class="nums">
+      {% set start = page-3 if page-3 > 1 else 1 %}
+      {% set end = page+3 if page+3 < total_pages else total_pages %}
+      {% for p in range(start, end+1) %}
+        <a class="{% if p==page %}active{% endif %}"
+           href="{{ url_for('assessment_runs.checkpoints_list', run_id=run.run_id, page=p,
+                            severity=filters.severity, category=filters.category, result=filters.result) }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

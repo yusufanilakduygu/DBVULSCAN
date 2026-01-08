@@ -5,7 +5,7 @@ from datetime import datetime
 from math import ceil
 from typing import Any, Dict, List
 
-from flask import redirect, render_template, request, session, url_for
+from flask import abort, redirect, render_template, request, session, url_for, make_response
 
 from db import get_db
 from . import assessment_runs_bp
@@ -24,8 +24,10 @@ def _normalize_date(s: str) -> str:
         return ""
 
 
-def _get_persisted_filters() -> Dict[str, str]:
-    # Persist filters in session; update from request.args when provided.
+# -----------------------------
+# RUNS: session filters
+# -----------------------------
+def _get_runs_filters() -> Dict[str, str]:
     keys = [
         "start_date",
         "end_date",
@@ -54,7 +56,6 @@ def _get_persisted_filters() -> Dict[str, str]:
     return out
 
 
-@assessment_runs_bp.route("", methods=["GET"])
 @assessment_runs_bp.route("/", methods=["GET"])
 def list_assessment_runs():
     # Reset filters
@@ -62,7 +63,7 @@ def list_assessment_runs():
         session.pop("assessment_runs_filters", None)
         return redirect(url_for("assessment_runs.list_assessment_runs"))
 
-    f = _get_persisted_filters()
+    f = _get_runs_filters()
 
     # Pagination
     try:
@@ -118,7 +119,7 @@ def list_assessment_runs():
 
         offset = (page - 1) * PAGE_SIZE
 
-        # Data (✅ error_count eklendi)
+        # Data (error_count dahil)
         sql = (
             "SELECT run_id, assessment_name, db_type, status, total_count, success_count, fail_count, error_count, "
             "success_pct, risk, risk_level, asset_adjusted_risk, asset_adjusted_risk_level, executed_at "
@@ -144,3 +145,295 @@ def list_assessment_runs():
         total_records=total_records,
         total_pages=total_pages,
     )
+
+
+# -----------------------------
+# RUN DETAIL (read-only form)
+# -----------------------------
+@assessment_runs_bp.route("/<int:run_id>", methods=["GET"])
+def run_detail(run_id: int):
+    db = get_db()
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT * FROM assessment_runs WHERE run_id=%s LIMIT 1", (run_id,))
+        r = cur.fetchone()
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+    if not r:
+        abort(404)
+
+    return render_template("assessment_runs/run_detail.html", r=r)
+
+
+# -----------------------------
+# REPORT: Assessment Run Summary (PDF only)
+# -----------------------------
+@assessment_runs_bp.route("/<int:run_id>/report", methods=["GET"])
+def report_assessment_run_summary(run_id: int):
+    """
+    PDF-only endpoint (Oracle tool style).
+    No HTML preview.
+    """
+    from weasyprint import HTML, CSS
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+
+        # Summary + Metrics (all from assessment_runs)
+        cur.execute(
+            """
+            SELECT
+              run_id,
+              executed_at,
+              status,
+              assessment_name,
+              db_type,
+              datasource_name,
+              benchmark_name,
+
+              total_count,
+              success_count,
+              fail_count,
+              error_count,
+              success_pct,
+              risk,
+              asset_adjusted_risk,
+
+              risk_level,
+              asset_adjusted_risk_level
+            FROM assessment_runs
+            WHERE run_id=%s
+            LIMIT 1
+            """,
+            (run_id,),
+        )
+        r = cur.fetchone()
+        if not r:
+            abort(404)
+
+        # Risk level descriptions
+        cur.execute("SELECT description FROM risk_levels WHERE risk_level=%s LIMIT 1", (r["risk_level"],))
+        row1 = cur.fetchone()
+        r["risk_level_desc"] = (row1["description"] if row1 and row1.get("description") else "") if isinstance(r, dict) else ""
+
+        cur.execute(
+            "SELECT description FROM risk_levels WHERE risk_level=%s LIMIT 1",
+            (r["asset_adjusted_risk_level"],),
+        )
+        row2 = cur.fetchone()
+        r["asset_risk_level_desc"] = (row2["description"] if row2 and row2.get("description") else "") if isinstance(r, dict) else ""
+
+        # Checkpoints (error -> fail -> pass)
+        cur.execute(
+            """
+            SELECT
+              run_checkpoint_id,
+              checkpoint_name,
+              checkpoint_severity,
+              checkpoint_category,
+              test_result
+            FROM assessment_run_checkpoints
+            WHERE run_id=%s
+            ORDER BY
+              CASE test_result
+                WHEN 'error' THEN 1
+                WHEN 'fail'  THEN 2
+                WHEN 'pass'  THEN 3
+                ELSE 9
+              END,
+              run_checkpoint_id ASC
+            """,
+            (run_id,),
+        )
+        cp_rows = cur.fetchall()
+
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+    # Render HTML (PDF-first template)
+    html_str = render_template(
+        "assessment_runs/report_assessment_run_summary.html",
+        r=r,
+        cp_rows=cp_rows,
+        css_href="",  # PDF uses CSS file directly
+    )
+
+    css_file = "/home/anil/dbvulscan/static/reports/assessment_run_summary.css"
+
+    pdf_bytes = HTML(string=html_str, base_url="file:///home/anil/dbvulscan/").write_pdf(
+        stylesheets=[CSS(filename=css_file)]
+    )
+
+    resp = make_response(pdf_bytes)
+    resp.headers["Content-Type"] = "application/pdf"
+    # Oracle tool hissi: tarayıcıda aç (inline). İstersen attachment yaparsın.
+    resp.headers["Content-Disposition"] = f'inline; filename="assessment_run_summary_run_{run_id}.pdf"'
+    return resp
+
+
+# Optional: keep .pdf endpoint but make it point to /report
+@assessment_runs_bp.route("/<int:run_id>/report.pdf", methods=["GET"])
+def report_assessment_run_summary_pdf(run_id: int):
+    return redirect(url_for("assessment_runs.report_assessment_run_summary", run_id=run_id))
+
+
+# -----------------------------
+# CHECKPOINTS: session filters per run_id
+# -----------------------------
+def _get_cp_filters(run_id: int) -> Dict[str, str]:
+    keys = ["severity", "category", "result"]
+    store_key = f"assessment_run_checkpoints_filters:{run_id}"
+    saved = session.get(store_key, {}) if isinstance(session.get(store_key), dict) else {}
+    out: Dict[str, str] = {k: (saved.get(k, "") or "") for k in keys}
+
+    touched = False
+    for k in keys:
+        if k in request.args:
+            out[k] = (request.args.get(k, "") or "").strip()
+            touched = True
+
+    if touched:
+        session[store_key] = out
+
+    return out
+
+
+@assessment_runs_bp.route("/<int:run_id>/checkpoints", methods=["GET"])
+def checkpoints_list(run_id: int):
+    # reset filters
+    if request.args.get("reset") == "1":
+        session.pop(f"assessment_run_checkpoints_filters:{run_id}", None)
+        return redirect(url_for("assessment_runs.checkpoints_list", run_id=run_id))
+
+    f = _get_cp_filters(run_id)
+
+    try:
+        page = int(request.args.get("page", "1"))
+    except Exception:
+        page = 1
+    if page < 1:
+        page = 1
+
+    where: List[str] = ["run_id = %s"]
+    params: List[Any] = [run_id]
+
+    if f["severity"]:
+        where.append("checkpoint_severity = %s")
+        params.append(f["severity"])
+    if f["category"]:
+        where.append("checkpoint_category = %s")
+        params.append(f["category"])
+    if f["result"]:
+        where.append("test_result = %s")
+        params.append(f["result"])
+
+    where_sql = " WHERE " + " AND ".join(where)
+
+    db = get_db()
+    try:
+        cur = db.cursor()
+
+        # run header info
+        cur.execute("SELECT run_id, assessment_name, executed_at FROM assessment_runs WHERE run_id=%s LIMIT 1", (run_id,))
+        run = cur.fetchone()
+        if not run:
+            abort(404)
+
+        # count
+        cur.execute("SELECT COUNT(*) AS cnt FROM assessment_run_checkpoints" + where_sql, params)
+        total_records = int(cur.fetchone()["cnt"] or 0)
+        total_pages = max(1, int(ceil(total_records / PAGE_SIZE))) if total_records else 1
+        if page > total_pages:
+            page = total_pages
+
+        offset = (page - 1) * PAGE_SIZE
+
+        # list
+        cur.execute(
+            "SELECT run_checkpoint_id, checkpoint_name, checkpoint_severity, checkpoint_category, test_result "
+            "FROM assessment_run_checkpoints"
+            + where_sql
+            + " ORDER BY run_checkpoint_id ASC "
+            "LIMIT %s OFFSET %s",
+            params + [PAGE_SIZE, offset],
+        )
+        rows = cur.fetchall()
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+    return render_template(
+        "assessment_runs/checkpoints_list.html",
+        run=run,
+        rows=rows,
+        filters=f,
+        page=page,
+        total_pages=total_pages,
+        total_records=total_records,
+    )
+
+
+@assessment_runs_bp.route("/<int:run_id>/checkpoints/<int:run_checkpoint_id>", methods=["GET"])
+def checkpoint_detail(run_id: int, run_checkpoint_id: int):
+    db = get_db()
+    try:
+        cur = db.cursor()
+
+        cur.execute("SELECT run_id, assessment_name, executed_at FROM assessment_runs WHERE run_id=%s LIMIT 1", (run_id,))
+        run = cur.fetchone()
+
+        cur.execute(
+            "SELECT * FROM assessment_run_checkpoints WHERE run_id=%s AND run_checkpoint_id=%s LIMIT 1",
+            (run_id, run_checkpoint_id),
+        )
+        r = cur.fetchone()
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+    if not run or not r:
+        abort(404)
+
+    return render_template("assessment_runs/checkpoint_detail.html", run=run, r=r)
+
+
+@assessment_runs_bp.route("/<int:run_id>/metrics", methods=["GET"])
+def metrics_list(run_id: int):
+    db = get_db()
+    try:
+        cur = db.cursor()
+
+        cur.execute("SELECT run_id, assessment_name, executed_at FROM assessment_runs WHERE run_id=%s LIMIT 1", (run_id,))
+        run = cur.fetchone()
+        if not run:
+            abort(404)
+
+        cur.execute(
+            "SELECT run_metric_id, dimension_type, dimension_value, total_count, success_count, fail_count, error_count, "
+            "success_pct, fail_pct, error_pct, risk, risk_level, asset_adjusted_risk, asset_adjusted_risk_level, "
+            "severity_sum, failed_severity_sum, executed_at "
+            "FROM assessment_run_metrics "
+            "WHERE run_id=%s "
+            "ORDER BY dimension_type ASC, dimension_value ASC",
+            (run_id,),
+        )
+        rows = cur.fetchall()
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+    return render_template("assessment_runs/metrics_list.html", run=run, rows=rows)

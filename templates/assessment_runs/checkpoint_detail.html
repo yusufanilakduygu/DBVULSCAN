@@ -1,0 +1,190 @@
+{% extends "layout.html" %}
+{% block title %}Checkpoint Detail · DB Vulnerability Scan{% endblock %}
+{% block content %}
+<style>
+.form-wrap{
+  background:#fff;
+  padding:20px;
+  border:1px solid #e6e6e6;
+  border-radius:12px;
+  max-width:1100px;
+  margin:auto;
+}
+
+.form-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.form-head h2{
+  margin:0;
+  font-size:22px;
+  font-weight:800;
+  color:#0f172a;
+}
+.form-meta{
+  font-size:12px;
+  color:#64748b;
+  margin-top:4px;
+}
+
+/* Button */
+.actions{ display:flex; gap:10px; flex-wrap:wrap; }
+.btn{
+  display:inline-flex;
+  align-items:center;
+  padding:10px 14px;
+  border-radius:10px;
+  text-decoration:none;
+  font-weight:700;
+  border:1px solid #2563eb;
+  background:#2563eb;
+  color:#fff;
+  border-color:#1d4ed8;
+}
+.btn:hover{ background:#1d4ed8; }
+
+/* 12-col grid */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(12, 1fr);
+  gap:14px 16px;
+}
+
+.field label{
+  display:block;
+  font-size:14px;
+  font-weight:600;
+  color:#0f172a;
+  margin-bottom:6px;
+}
+
+.input, .textarea{
+  width:100%;
+  padding:10px 12px;
+  border:1px solid #d9d9d9;
+  border-radius:10px;
+  font-size:14px;
+  background:#f8fafc;
+  color:#0f172a;
+  box-sizing:border-box;
+}
+.textarea{
+  min-height:90px;
+  resize:vertical;
+  white-space:pre-wrap;
+}
+
+/* spans */
+.span-12{ grid-column: span 12; }
+.span-6 { grid-column: span 6; }
+.span-4 { grid-column: span 4; }
+
+/* responsive */
+@media (max-width: 900px){
+  .span-6,.span-4{ grid-column: span 12; }
+}
+</style>
+
+<div class="form-wrap">
+
+  <div class="form-head">
+    <div>
+      <h2>Checkpoint Detail</h2>
+      <div class="form-meta">
+        run_id: {{ run.run_id }} · {{ run.assessment_name }} · executed_at: {{ run.executed_at }}
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn" href="{{ url_for('assessment_runs.checkpoints_list', run_id=run.run_id) }}">Back</a>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- Row 1 -->
+    <div class="field span-6">
+      <label>Name</label>
+      <input class="input" type="text" value="{{ r.checkpoint_name }}" readonly>
+    </div>
+
+    <div class="field span-6">
+      <label>Test Result</label>
+      <input class="input" type="text" value="{{ r.test_result }}" readonly>
+    </div>
+
+    <!-- Row 2 -->
+    <div class="field span-6">
+      <label>Evidence</label>
+      <textarea class="textarea" readonly>{{ r.evidence_text or '' }}</textarea>
+    </div>
+
+    <div class="field span-6">
+      <label>Error Message</label>
+      <textarea class="textarea" readonly>{{ r.error_text or '' }}</textarea>
+    </div>
+
+    <!-- Row 3 -->
+
+
+    <div class="field span-6">
+      <label>Category</label>
+      <input class="input" type="text" value="{{ r.checkpoint_category }}" readonly>
+    </div>
+
+    <div class="field span-6">
+      <label>Severity</label>
+      <input class="input" type="text" value="{{ r.checkpoint_severity }}" readonly>
+    </div>
+
+    <!-- Row 4 -->
+    <div class="field span-6">
+      <label>Pre SQL Test</label>
+      <textarea class="textarea" readonly>{{ r.checkpoint_pre_sql_test or '' }}</textarea>
+    </div>
+
+    <div class="field span-6">
+      <label>SQL Test</label>
+      <textarea class="textarea" readonly>{{ r.checkpoint_sql_test or '' }}</textarea>
+    </div>
+
+    <!-- Row 5 -->
+    <div class="field span-12">
+      <label>Test Condition</label>
+      <input class="input" type="text" value="{{ r.checkpoint_test_condition or '' }}" readonly>
+    </div>
+
+    <!-- Row 6 -->
+    <div class="field span-6">
+      <label>Pre SQL Detail</label>
+      <textarea class="textarea" readonly>{{ r.checkpoint_pre_sql_detail or '' }}</textarea>
+    </div>
+
+    <div class="field span-6">
+      <label>SQL Detail</label>
+      <textarea class="textarea" readonly>{{ r.checkpoint_sql_detail or '' }}</textarea>
+    </div>
+
+    <!-- Row 7 -->
+    <div class="field span-6">
+      <label>Text Pass</label>
+      <textarea class="textarea" readonly>{{ r.checkpoint_text_pass or '' }}</textarea>
+    </div>
+
+    <div class="field span-6">
+      <label>Text Fail</label>
+      <textarea class="textarea" readonly>{{ r.checkpoint_text_fail or '' }}</textarea>
+    </div>
+
+    <!-- Row 8 -->
+    <div class="field span-12">
+      <label>Description</label>
+      <textarea class="textarea" readonly>{{ r.checkpoint_description or '' }}</textarea>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

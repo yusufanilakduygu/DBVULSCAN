@@ -1,0 +1,173 @@
+:root{
+  --font-mono: "DejaVu Sans Mono", "Liberation Mono", "Courier New", monospace;
+}
+
+html, body{
+  margin:0;
+  padding:0;
+  background:#fff;
+  color:#000;
+  font-family: var(--font-mono);
+  font-size: 8pt;
+  line-height: 1.22;
+}
+
+@page{
+  size: A4;
+  margin: 10mm 14mm 12mm 14mm;
+
+  /* daha az belli olsun */
+  @top-right{
+    content: "OmniRiskDB by Arbo Security";
+    font-family: var(--font-mono);
+    font-size: 6.5pt;      /* 8pt -> 6.5pt */
+    color: #666;           /* biraz sönük */
+  }
+
+  @bottom-right{
+    content: "Page " counter(page) " / " counter(pages);
+    font-family: var(--font-mono);
+    font-size: 8pt;
+  }
+}
+
+.shadow-box{
+  border: 1px solid #9aa3ad;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 1.2px 1.2px 0 rgba(0,0,0,0.22);
+}
+
+.report{ margin:0; padding:0; }
+
+.report-title{
+  text-align:center;
+  font-size: 19pt;
+  font-weight: 800;
+  margin: 0 0 5mm 0;
+}
+
+.box-title{
+  font-weight: 900;
+  font-size: 10.5pt;
+  margin: 0 0 2mm 0;
+}
+
+.section{ margin-top: 7mm; }
+
+.section-title{
+  font-weight: 900;
+  font-size: 10.5pt;
+  margin-bottom: 3mm;
+}
+
+.summary-box{
+  padding: 5mm 6mm;
+  margin-top: 1mm;
+}
+
+.kv-row{
+  display:grid;
+  grid-template-columns: 60mm 6mm 1fr;
+  gap: 1.5mm;
+  align-items: baseline;
+  margin: 0.6mm 0;
+  line-height: 1.05;
+}
+
+.kv-key{ font-weight: 800; }
+.kv-sep{ text-align:center; }
+.kv-val{ color:#111; font-weight: 400; }
+
+.tbl{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8pt;
+  table-layout: fixed;
+}
+
+.tbl th, .tbl td{
+  border: 1px solid #8b8b8b;
+  padding: 3px 5px;
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.12;
+}
+
+.tbl th{ font-weight: 800; }
+
+.table-wrap.shadow-box{ padding: 0; }
+.table-wrap .tbl{ border: none; }
+
+.tbl-metrics thead th{
+  background: #f0f2f5;
+  color: #444;
+}
+.th-multi{ line-height: 1.10; }
+
+/* Result coloring: Fail */
+.res-fail{
+  color: #b00000;
+  font-weight: 900;
+}
+
+/* Risk levels */
+.lvl{
+  font-weight: 900;
+  padding: 0.5px 4px;
+  border-radius: 3px;
+  border: 1px solid #c7c7c7;
+}
+.lvl-low{ color: #2f6b2f; background: #f3f8f3; border-color:#d8e8d8; }
+.lvl-medium{ color: #7a6500; background: #fbf8ea; border-color:#efe2b6; }
+.lvl-high{ color: #8a4f00; background: #fbf2ea; border-color:#f0d2b8; }
+.lvl-critical{ color: #7a1f1f; background: #fbefef; border-color:#f0c8c8; }
+
+.col-id{ width: 16mm; }
+.col-sev{ width: 20mm; }
+.col-cat{ width: 22mm; }
+.col-res{ width: 18mm; }
+
+.checkpoint-name{
+  font-size: 7.4pt;
+  line-height: 1.08;
+}
+
+thead{ display: table-header-group; }
+tr{ break-inside: avoid; }
+
+.risk-label{ font-weight: 900; }
+
+.risk-separator{
+  border-top: 1px solid #c9cfd6;
+  margin: 4mm 0 4mm 0;
+}
+
+/* ---- Severity colored badges (MAT) ---- */
+.sev{
+  font-weight: 900;
+  padding: 0.5px 4px;
+  border-radius: 3px;
+  border: 1px solid #cfd6dd;
+}
+
+/* Mat palette: softer bg, muted text */
+.sev-critical{ color:#7a1f1f; background:#fbefef; border-color:#f0c8c8; }
+.sev-major{    color:#8a4f00; background:#fbf2ea; border-color:#f0d2b8; }
+.sev-minor{    color:#7a6500; background:#fbf8ea; border-color:#efe2b6; }
+.sev-caution{  color:#2f6b2f; background:#f3f8f3; border-color:#d8e8d8; }
+
+/* ---- Assessment Status badge ---- */
+.status{
+  font-weight: 900;
+  padding: 0.5px 4px;
+  border-radius: 3px;
+  border: 1px solid #cfd6dd;
+}
+
+.status-success{ color:#2f6b2f; background:#f3f8f3; border-color:#d8e8d8; }
+.status-fail{    color:#7a1f1f; background:#fbefef; border-color:#f0c8c8; }
+.status-error{   color:#8a4f00; background:#fbf2ea; border-color:#f0d2b8; }
+.status-other{   color:#444;    background:#f4f5f7; border-color:#d9dde3; }

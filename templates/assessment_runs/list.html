@@ -21,8 +21,12 @@
 .pager .nums{display:flex;gap:6px;flex-wrap:wrap;}
 .pager .active{background:#2563eb;color:#fff;border-color:#1d4ed8;}
 .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #e5e9f2;background:#f8fafc;}
-.btn-apply{border:1px solid #2563eb;background:#2563eb;color:#fff;border-radius:8px;padding:7px 12px;font-size:14px;cursor:pointer;}
-.btn-apply:hover{background:#1d4ed8;border-color:#1d4ed8;}
+.link{color:#2563eb;text-decoration:none;font-weight:700;}
+.link:hover{text-decoration:underline;}
+.row-actions{display:flex;gap:8px;justify-content:flex-end;}
+.btn-small{display:inline-block;padding:6px 10px;border-radius:8px;text-decoration:none;font-size:13px;white-space:nowrap;}
+.btn-outline{background:#fff;color:#2563eb;border:1px solid #2563eb;}
+.btn-outline:hover{background:#f8fafc;}
 </style>
 
 <div class="ds-wrap">
@@ -38,15 +42,8 @@
 
   <div class="filters">
     <form method="get" action="{{ url_for('assessment_runs.list_assessment_runs') }}">
-      <input type="date" name="start_date"
-             value="{{ filters.start_date or '' }}"
-             title="Start of executed_at"
-             onchange="this.form.submit()">
-
-      <input type="date" name="end_date"
-             value="{{ filters.end_date or '' }}"
-             title="End of executed_at"
-             onchange="this.form.submit()">
+      <input type="date" name="start_date" value="{{ filters.start_date or '' }}" title="Start of executed_at" onchange="this.form.submit()">
+      <input type="date" name="end_date" value="{{ filters.end_date or '' }}" title="End of executed_at" onchange="this.form.submit()">
 
       <input type="text" name="run_id" placeholder="run_id" value="{{ filters.run_id or '' }}" style="width:140px;">
 
@@ -79,8 +76,7 @@
         <option value="critical" {% if filters.asset_adjusted_risk_level=='critical' %}selected{% endif %}>critical</option>
       </select>
 
-      <!-- Görünür Apply (run_id yazınca Enter yerine de iş görür) -->
-      <button class="btn-apply" type="submit">Apply</button>
+      <button type="submit" style="display:none;"></button>
     </form>
   </div>
 
@@ -95,19 +91,24 @@
         <th>success</th>
         <th>fail</th>
         <th>error</th>
-        <th>success_pct</th>
+        <th>success<br>pct</th>
         <th>risk</th>
-        <th>risk_level</th>
-        <th>asset_adjusted_risk</th>
-        <th>asset_adjusted_risk_level</th>
+        <th>risk<br>level</th>
+        <th>asset<br>adjusted<br>risk</th>
+        <th>asset adj<br>risk_level</th>
         <th>executed_at</th>
+        <!-- <th style="text-align:right;">actions</th> -->
       </tr>
     </thead>
     <tbody>
       {% for r in rows %}
       <tr>
         <td>{{ r.run_id }}</td>
-        <td>{{ r.assessment_name }}</td>
+        <td>
+          <a class="link" href="{{ url_for('assessment_runs.run_detail', run_id=r.run_id) }}">
+            {{ r.assessment_name }}
+          </a>
+        </td>
         <td><span class="badge">{{ r.db_type }}</span></td>
         <td><span class="badge">{{ r.status }}</span></td>
         <td>{{ r.total_count }}</td>
@@ -120,6 +121,12 @@
         <td>{{ r.asset_adjusted_risk }}</td>
         <td><span class="badge">{{ r.asset_adjusted_risk_level }}</span></td>
         <td>{{ r.executed_at }}</td>
+        <!-- <td style="text-align:right;">
+          <div class="row-actions">
+            <a class="btn-small btn-outline" href="{{ url_for('assessment_runs.checkpoints_list', run_id=r.run_id) }}">Checkpoints</a>
+            <a class="btn-small btn-outline" href="{{ url_for('assessment_runs.metrics_list', run_id=r.run_id) }}">Metrics</a>
+          </div>
+        </td> -->
       </tr>
       {% else %}
       <tr>
