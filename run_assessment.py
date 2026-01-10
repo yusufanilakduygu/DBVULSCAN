@@ -22,6 +22,13 @@ KRİTİK KURALLAR:
         success_pct, fail_pct, error_pct
 - assessment_runs:
     * SADECE all/all snapshot
+
+STATUS AKIŞI (ANLAŞTIĞIMIZ FINAL):
+- Run başlar başlamaz: incomplete
+- DB'ye bağlanamazsa: unreachable ve return (exception yok)
+- SQL testleri sırasında hata olursa: error (run devam eder, final error)
+- Sorunsuz biterse: success
+- Kill/crash olursa: incomplete kalır (handle edilemez)
 """
 
 from __future__ import annotations
@@ -180,7 +187,6 @@ def _load_checkpoint(cur, checkpoint_id: int) -> CheckpointSnapshot:
     if sev == "info":
         sev = "caution"
     if sev not in SEVERITY_WEIGHT:
-        # fail-safe
         sev = "major"
 
     return CheckpointSnapshot(
@@ -212,8 +218,6 @@ def _calculate_metrics(rows, asset_impact_value: int) -> Dict[str, Any]:
     fail_pct = (fail * 100.0 / total) if total else 0.0
     error_pct = (error * 100.0 / total) if total else 0.0
 
-    # FINAL risk model:
-    # pass=0, fail=1, error=1
     severity_sum = 0
     failed_severity_sum = 0
 
@@ -262,14 +266,14 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
     asset_impact_value = ASSET_IMPACT_WEIGHT[asset_impact_enum]
 
     # -------------------------
-    # RUN MASTER
+    # RUN MASTER (başlar başlamaz incomplete)
     # -------------------------
     cur.execute(
         """
         INSERT INTO assessment_runs
         (run_month, assessment_id, assessment_name, db_type, status,
          datasource_id, datasource_name, benchmark_id, benchmark_name, asset_impact)
-        VALUES (%s,%s,%s,%s,'started',%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,'incomplete',%s,%s,%s,%s,%s)
         """,
         (
             run_month,
@@ -284,74 +288,96 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
         ),
     )
     run_id = cur.lastrowid
+    db.commit()  # run kaydı mühürlensin (kill olursa incomplete kalması tasarım)
 
     had_error = False
 
+    # -------------------------
+    # TARGET DB CONNECT (bağlanamazsa unreachable ve return)
+    # -------------------------
     ds = _load_datasource(cur, assessment["datasource_id"])
-    conn = (
-        get_oracle_connection(ds)
-        if assessment["db_type"] == "oracle"
-        else get_mssql_connection(ds)
-    )
+    try:
+        conn = (
+            get_oracle_connection(ds)
+            if assessment["db_type"] == "oracle"
+            else get_mssql_connection(ds)
+        )
+    except Exception:
+        # DB'ye bağlanamadı -> unreachable, exception yok
+        cur.execute(
+            """
+            UPDATE assessment_runs
+               SET status='unreachable'
+             WHERE run_id=%s AND run_month=%s
+            """,
+            (run_id, run_month),
+        )
+        db.commit()
+        db.close()
+        return run_id, run_month
 
     # -------------------------
     # CHECKPOINT EXECUTION
     # -------------------------
-    for cp_id in _load_checkpoint_ids(cur, assessment["benchmark_id"]):
-        cp = _load_checkpoint(cur, cp_id)
+    try:
+        for cp_id in _load_checkpoint_ids(cur, assessment["benchmark_id"]):
+            cp = _load_checkpoint(cur, cp_id)
 
+            try:
+                if cp.pre_sql_test:
+                    _execute_sql(conn, cp.pre_sql_test)
+
+                _, rows = _execute_sql(conn, cp.sql_test)
+                value = _fetch_first_cell(rows)
+                (ok, _), err = evaluate_condition(value, cp.test_condition)
+
+                if err:
+                    raise RuntimeError(err)
+
+                result = "pass" if ok else "fail"
+                error_text = None
+
+            except Exception as e:
+                result = "error"
+                error_text = str(e)
+                had_error = True
+
+            cur.execute(
+                """
+                INSERT INTO assessment_run_checkpoints
+                (run_month, run_id, checkpoint_id, checkpoint_name,
+                 checkpoint_severity, checkpoint_category,
+                 checkpoint_description,
+                 checkpoint_pre_sql_test, checkpoint_sql_test, checkpoint_test_condition,
+                 checkpoint_pre_sql_detail, checkpoint_sql_detail,
+                 checkpoint_text_pass, checkpoint_text_fail,
+                 test_result, error_text)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    run_month,
+                    run_id,
+                    cp.checkpoint_id,
+                    cp.name,
+                    cp.severity,
+                    cp.category,
+                    cp.description,
+                    cp.pre_sql_test,
+                    cp.sql_test,
+                    cp.test_condition,
+                    cp.pre_sql_detail,
+                    cp.sql_detail,
+                    cp.text_pass,
+                    cp.text_fail,
+                    result,
+                    error_text,
+                ),
+            )
+    finally:
         try:
-            if cp.pre_sql_test:
-                _execute_sql(conn, cp.pre_sql_test)
-
-            _, rows = _execute_sql(conn, cp.sql_test)
-            value = _fetch_first_cell(rows)
-            (ok, _), err = evaluate_condition(value, cp.test_condition)
-
-            if err:
-                raise RuntimeError(err)
-
-            result = "pass" if ok else "fail"
-            error_text = None
-
-        except Exception as e:
-            result = "error"
-            error_text = str(e)
-            had_error = True
-
-        cur.execute(
-            """
-            INSERT INTO assessment_run_checkpoints
-            (run_month, run_id, checkpoint_id, checkpoint_name,
-             checkpoint_severity, checkpoint_category,
-             checkpoint_description,
-             checkpoint_pre_sql_test, checkpoint_sql_test, checkpoint_test_condition,
-             checkpoint_pre_sql_detail, checkpoint_sql_detail,
-             checkpoint_text_pass, checkpoint_text_fail,
-             test_result, error_text)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """,
-            (
-                run_month,
-                run_id,
-                cp.checkpoint_id,
-                cp.name,
-                cp.severity,
-                cp.category,
-                cp.description,
-                cp.pre_sql_test,
-                cp.sql_test,
-                cp.test_condition,
-                cp.pre_sql_detail,
-                cp.sql_detail,
-                cp.text_pass,
-                cp.text_fail,
-                result,
-                error_text,
-            ),
-        )
-
-    conn.close()
+            conn.close()
+        except Exception:
+            pass
 
     # -------------------------
     # METRICS SOURCE
@@ -404,10 +430,8 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
         )
         return m
 
-    # ALL / ALL
     overall = insert_metric("all", "all", rows)
 
-    # SEVERITY
     for sev in SEVERITY_WEIGHT.keys():
         insert_metric(
             "severity",
@@ -415,7 +439,6 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
             [r for r in rows if (r["checkpoint_severity"] or "").lower() == sev],
         )
 
-    # CATEGORY
     for cat in ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]:
         insert_metric(
             "category",
@@ -424,8 +447,10 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
         )
 
     # -------------------------
-    # SNAPSHOT TO assessment_runs (all/all)
+    # SNAPSHOT TO assessment_runs (all/all) + FINAL STATUS
     # -------------------------
+    final_status = "error" if had_error else "success"
+
     cur.execute(
         """
         UPDATE assessment_runs
@@ -451,11 +476,63 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
             overall["risk_level"],
             overall["asset_adjusted_risk"],
             overall["asset_adjusted_risk_level"],
-            "error" if had_error else "success",
+            final_status,
             run_id,
             run_month,
         ),
     )
+
+    # -------------------------
+    # assessment_run_category_metrics (Category × Severity matrix) - 32 satır
+    # -------------------------
+    categories = ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]
+    severities = ["caution", "minor", "major", "critical"]
+
+    matrix: Dict[Tuple[str, str], Dict[str, int]] = {}
+    for cat in categories:
+        for sev in severities:
+            matrix[(cat, sev)] = {"total": 0, "pass": 0, "fail": 0, "error": 0}
+
+    for r in rows:
+        cat = (r.get("checkpoint_category") or "OTHER").upper()
+        sev = (r.get("checkpoint_severity") or "major").lower()
+        res = r.get("test_result")
+
+        if cat not in categories:
+            cat = "OTHER"
+        if sev not in severities:
+            sev = "major"
+
+        cell = matrix[(cat, sev)]
+        cell["total"] += 1
+        if res == "pass":
+            cell["pass"] += 1
+        elif res == "fail":
+            cell["fail"] += 1
+        else:
+            cell["error"] += 1
+
+    for cat in categories:
+        for sev in severities:
+            cell = matrix[(cat, sev)]
+            cur.execute(
+                """
+                INSERT INTO assessment_run_category_metrics
+                (run_month, run_id, category, severity,
+                 total_count, pass_count, fail_count, error_count)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    run_month,
+                    run_id,
+                    cat,
+                    sev,
+                    cell["total"],
+                    cell["pass"],
+                    cell["fail"],
+                    cell["error"],
+                ),
+            )
 
     db.commit()
     db.close()
