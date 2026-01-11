@@ -114,6 +114,12 @@ textarea{min-height:90px;}
             <a href="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=bm.benchmark_id) }}" class="btn-std">
               Manage Checkpoints
             </a>
+
+            <!-- ✅ NEW BUTTON -->
+            <a href="{{ url_for('benchmarks.benchmark_category_severity_dist', benchmark_id=bm.benchmark_id) }}" class="btn-std">
+              Category &amp; Severity Dist.
+            </a>
+
             <div class="cp-note">
               Drag &amp; drop or use ▲ ▼ to change the order. Use 🗑 to remove. Then click <b>Save</b>.
             </div>

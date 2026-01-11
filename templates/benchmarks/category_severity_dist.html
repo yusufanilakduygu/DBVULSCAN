@@ -1,0 +1,154 @@
+{% extends "layout.html" %}
+{% block title %}Category & Severity Distribution · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+/* ✅ Unique class names (layout.html ile çakışmasın) */
+.csd-wrap{
+  max-width:1100px;
+  margin: 0 auto;
+  background:#fff;
+  border:1px solid #e5e9f2;
+  border-radius:12px;
+  padding:16px;
+}
+
+/* Başlık: kesinlikle üstte, tek kolon */
+.csd-head{
+  display:block;
+  width:100%;
+  margin-bottom:12px;
+}
+.csd-title{
+  font-weight:900;
+  font-size:16px;
+  margin:0;
+}
+.csd-meta{
+  font-size:12px;
+  color:#64748b;
+  margin-top:6px;
+  line-height:1.4;
+}
+
+/* ✅ Matrix: kesinlikle alt satıra insin */
+.csd-matrix{
+  display:block;
+  width:100%;
+  clear:both;            /* float varsa kır */
+  float:none !important; /* global float varsa ez */
+  border-collapse:collapse;
+  table-layout:fixed;
+  margin-top:10px;
+}
+.csd-matrix th, .csd-matrix td{
+  border:1px solid #e5e9f2;
+  padding:10px 10px;
+  text-align:center;
+  font-size:13px;
+}
+.csd-matrix th{
+  background:#f8fafc;
+  font-weight:900;
+}
+.csd-matrix td.csd-rowhdr{
+  text-align:left;
+  font-weight:900;
+  background:#fff;
+}
+.csd-matrix tr.csd-total-row td{
+  font-weight:900;
+  background:#f8fafc;
+}
+.csd-matrix td.csd-total-col{
+  font-weight:900;
+  background:#f8fafc;
+}
+
+/* Butonlar: tablonun altında */
+.csd-actions{
+  margin-top:12px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.csd-btn{
+  display:inline-block;
+  padding:8px 12px;
+  border-radius:8px;
+  border:1px solid #dcdcdc;
+  background:#fff;
+  text-decoration:none;
+  font-weight:800;
+}
+.csd-btn:hover{background:#f8fafc;}
+
+.csd-note{
+  margin-top:10px;
+  font-size:12px;
+  color:#64748b;
+}
+</style>
+
+<div class="csd-wrap">
+
+  <!-- ✅ Başlık ÜSTTE -->
+  <div class="csd-head">
+    <h3 class="csd-title">Checkpoint Category &amp; Severity Distribution</h3>
+    <div class="csd-meta">
+      <div><b>Benchmark:</b> {{ bm.code }} · {{ bm.name }}</div>
+      <div>
+        <b>DB Type:</b> {{ bm.db_type }}
+        {% if bm.version %} · <b>Version:</b> {{ bm.version }}{% endif %}
+        · <b>Level:</b> {{ bm.level }}
+        · <b>Status:</b> {{ bm.status }}
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ Matrix BAŞLIĞIN ALTINDA -->
+  <table class="csd-matrix">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Checkpoint Category &amp; Severity Distribution</th>
+        {% for sev in severities %}
+          <th>{{ sev }}</th>
+        {% endfor %}
+        <th>Total</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for r in matrix %}
+        <tr>
+          <td class="csd-rowhdr">{{ r.category }}</td>
+          {% for sev in severities %}
+            <td>{{ r.cells[sev] }}</td>
+          {% endfor %}
+          <td class="csd-total-col">{{ r.row_total }}</td>
+        </tr>
+      {% endfor %}
+
+      <tr class="csd-total-row">
+        <td class="csd-rowhdr">Total</td>
+        {% for sev in severities %}
+          <td>{{ col_totals[sev] }}</td>
+        {% endfor %}
+        <td>{{ grand_total }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ✅ Butonlar TABLONUN ALTINDA -->
+  <div class="csd-actions">
+    <a class="csd-btn" href="{{ url_for('benchmarks.edit_benchmark', benchmark_id=bm.benchmark_id) }}">Back to Edit</a>
+    <a class="csd-btn" href="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=bm.benchmark_id) }}">Manage Checkpoints</a>
+  </div>
+
+  <div class="csd-note">
+    Not: Bu tablo sadece benchmark’a map edilmiş checkpoint’leri sayar. (Severity: critical/major/minor/caution)
+  </div>
+
+</div>
+{% endblock %}

@@ -411,6 +411,10 @@ def checkpoint_detail(run_id: int, run_checkpoint_id: int):
 
 @assessment_runs_bp.route("/<int:run_id>/metrics", methods=["GET"])
 def metrics_list(run_id: int):
+    tab = (request.args.get("tab", "general") or "general").strip().lower()
+    if tab not in ("general", "category"):
+        tab = "general"
+
     db = get_db()
     try:
         cur = db.cursor()
@@ -430,10 +434,48 @@ def metrics_list(run_id: int):
             (run_id,),
         )
         rows = cur.fetchall()
+
+        # Category x Severity execution metrics
+        cur.execute(
+            "SELECT category, severity, total_count, pass_count, fail_count, error_count "
+            "FROM assessment_run_category_metrics "
+            "WHERE run_id=%s",
+            (run_id,),
+        )
+        cat_rows = cur.fetchall()
     finally:
         try:
             db.close()
         except Exception:
             pass
 
-    return render_template("assessment_runs/metrics_list.html", run=run, rows=rows)
+    # Build matrix: category -> severity -> counts
+    cat_matrix: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for cr in cat_rows or []:
+        c = cr.get("category")
+        s = cr.get("severity")
+        if not c or not s:
+            continue
+        cat_matrix.setdefault(str(c), {})[str(s)] = cr
+
+    # Risk map for each category from assessment_run_metrics (dimension_type='category')
+    cat_risk_map: Dict[str, Dict[str, Any]] = {}
+    for r in rows or []:
+        if (r.get("dimension_type") or "") == "category":
+            dv = r.get("dimension_value")
+            if dv:
+                cat_risk_map[str(dv)] = r
+
+    categories = ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]
+    severities = ["critical", "major", "minor", "caution"]
+
+    return render_template(
+        "assessment_runs/metrics_list.html",
+        run=run,
+        rows=rows,
+        tab=tab,
+        categories=categories,
+        severities=severities,
+        cat_matrix=cat_matrix,
+        cat_risk_map=cat_risk_map,
+    )

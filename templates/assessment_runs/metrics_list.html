@@ -13,18 +13,138 @@
 .ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
 .ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;white-space:nowrap;}
 .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #e5e9f2;background:#f8fafc;}
+
+/* Risk level badges */
+.badge-level{font-weight:900;letter-spacing:.2px;}
+.lvl-low{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
+.lvl-medium{background:#fffbeb;border-color:#fde68a;color:#92400e;}
+.lvl-high{background:#fff7ed;border-color:#fdba74;color:#9a3412;}
+.lvl-critical{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
+.lvl-na{background:#f8fafc;border-color:#e5e9f2;color:#475569;}
+
+/* Tabs */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid #e5e9f2;background:#fff;}
+.tab-link{display:inline-block;padding:8px 12px;border-radius:10px;text-decoration:none;border:1px solid #e5e9f2;color:#0f172a;background:#f8fafc;font-weight:800;font-size:13px;}
+.tab-link.active{background:#2563eb;color:#fff;border-color:#1d4ed8;}
+.tab-panel{padding:0;}
+
+/* Category x Severity Matrix */
+.mx-wrap{overflow:auto;}
+.mx-table{width:100%;border-collapse:collapse;min-width:1200px;}
+.mx-table th,.mx-table td{padding:8px 10px;border-top:1px solid #eef2f7;text-align:center;vertical-align:middle;white-space:nowrap;}
+.mx-table thead th{background:#f8fafc;font-weight:800;border-top:none;}
+.mx-left{text-align:left !important;}
+.mx-subhead{font-weight:700;font-size:12px;color:#334155;}
+.mx-sev{font-size:12px;text-transform:lowercase;}
+.mx-num{font-variant-numeric:tabular-nums;}
+.mx-risk{text-align:right !important;}
+
+/* Severity group separators (between severity blocks) */
+.mx-group-sep{border-right:2px solid #e5e9f2 !important;}
+.mx-table thead .mx-group-sep{border-right:2px solid #dbe3ef !important;}
+
+/* Strong vertical separators (kırmızı çizgiler) */
+.mx-vsep{border-right:2px solid #cbd5e1 !important;}
+.mx-table thead .mx-vsep{border-right:2px solid #94a3b8 !important;}
 </style>
 
 <div class="ds-wrap">
   <div class="ds-head">
     <div>
       <div class="ds-title">Run Metrics</div>
-      <div class="ds-meta">run_id: {{ run.run_id }} · {{ run.assessment_name }} · executed_at: {{ run.executed_at }}</div>
+      <div class="ds-meta">
+        run_id: {{ run.run_id }} · {{ run.assessment_name }} · executed_at: {{ run.executed_at }}
+      </div>
     </div>
     <div class="ds-actions">
-      <a class="btn btn-secondary" href="{{ url_for('assessment_runs.run_detail', run_id=run.run_id) }}">Back</a>
+      <a class="btn btn-secondary"
+         href="{{ url_for('assessment_runs.run_detail', run_id=run.run_id) }}">Back</a>
     </div>
   </div>
+
+  <div class="tabs">
+    <a class="tab-link {% if tab=='general' %}active{% endif %}"
+       href="{{ url_for('assessment_runs.metrics_list', run_id=run.run_id, tab='general') }}">
+      General Metrics
+    </a>
+    <a class="tab-link {% if tab=='category' %}active{% endif %}"
+       href="{{ url_for('assessment_runs.metrics_list', run_id=run.run_id, tab='category') }}">
+      Category Metrics
+    </a>
+  </div>
+
+  {% if tab == 'category' %}
+  <div class="tab-panel">
+    <div class="mx-wrap">
+      <table class="mx-table">
+        <thead>
+          <tr>
+            {# category -> critical çizgisi #}
+            <th class="mx-left mx-vsep" rowspan="2">category</th>
+
+            {% for sev in severities %}
+              {# severity blok başlığı (sonuncuda da çizgi var) #}
+              <th class="mx-sev mx-group-sep" colspan="4">{{ sev }}</th>
+            {% endfor %}
+
+            {# caution -> Std Risk çizgisi zaten caution total'dan gelecek; burada da risk bloğuna net çizgiler #}
+            <th rowspan="2" class="mx-vsep">Std Risk</th>
+            <th rowspan="2" class="mx-vsep">Std Risk Level</th>
+
+            {# Asset Risk ile Asset Risk Level arası çizgi: Asset Risk kolonunun sağında olacak #}
+            <th rowspan="2" class="mx-vsep">Asset Risk</th>
+            <th rowspan="2">Asset Risk Level</th>
+          </tr>
+
+          <tr>
+            {% for sev in severities %}
+              <th class="mx-subhead">pass</th>
+              <th class="mx-subhead">fail</th>
+              <th class="mx-subhead">error</th>
+              {# HER severity'nin total'ı sonrası çizgi (caution dahil) #}
+              <th class="mx-subhead mx-group-sep">total</th>
+            {% endfor %}
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for cat in categories %}
+            {% set risk = cat_risk_map.get(cat) %}
+            {% set rl = (risk.risk_level if risk and risk.risk_level else 'na') %}
+            {% set arl = (risk.asset_adjusted_risk_level if risk and risk.asset_adjusted_risk_level else 'na') %}
+            <tr>
+              <td class="mx-left mx-vsep"><span class="badge">{{ cat }}</span></td>
+
+              {% for sev in severities %}
+                {% set cell = (cat_matrix.get(cat, {}) or {}).get(sev) %}
+                <td class="mx-num">{{ cell.pass_count if cell else 0 }}</td>
+                <td class="mx-num">{{ cell.fail_count if cell else 0 }}</td>
+                <td class="mx-num">{{ cell.error_count if cell else 0 }}</td>
+                {# HER severity total'ından sonra çizgi (caution -> Std Risk buradan geliyor) #}
+                <td class="mx-num mx-group-sep">{{ cell.total_count if cell else 0 }}</td>
+              {% endfor %}
+
+              {# Std Risk -> Std Risk Level çizgisi Std Risk'in sağında #}
+              <td class="mx-num mx-risk mx-vsep">{{ risk.risk if risk else '-' }}</td>
+
+              {# Std Risk Level -> Asset Risk çizgisi Std Risk Level'in sağında #}
+              <td class="mx-vsep">
+                <span class="badge badge-level lvl-{{ rl|lower }}">{{ risk.risk_level if risk else '-' }}</span>
+              </td>
+
+              {# Asset Risk -> Asset Risk Level çizgisi Asset Risk'in sağında #}
+              <td class="mx-num mx-risk mx-vsep">{{ risk.asset_adjusted_risk if risk else '-' }}</td>
+
+              <td>
+                <span class="badge badge-level lvl-{{ arl|lower }}">{{ risk.asset_adjusted_risk_level if risk else '-' }}</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
 
   <table class="ds-table">
     <thead>
@@ -48,29 +168,33 @@
     </thead>
     <tbody>
       {% for r in rows %}
-      <tr>
-        <td><span class="badge">{{ r.dimension_type }}</span></td>
-        <td><span class="badge">{{ r.dimension_value }}</span></td>
-        <td>{{ r.total_count }}</td>
-        <td>{{ r.success_count }}</td>
-        <td>{{ r.fail_count }}</td>
-        <td>{{ r.error_count }}</td>
-        <td>{{ r.success_pct }}</td>
-        <td>{{ r.fail_pct }}</td>
-        <td>{{ r.error_pct }}</td>
-        <td>{{ r.risk }}</td>
-        <td><span class="badge">{{ r.risk_level }}</span></td>
-        <td>{{ r.asset_adjusted_risk }}</td>
-        <td><span class="badge">{{ r.asset_adjusted_risk_level }}</span></td>
-        <td>{{ r.severity_sum }}</td>
-        <td>{{ r.failed_severity_sum }}</td>
-      </tr>
+        {% set rl = (r.risk_level if r.risk_level else 'na') %}
+        {% set arl = (r.asset_adjusted_risk_level if r.asset_adjusted_risk_level else 'na') %}
+        <tr>
+          <td><span class="badge">{{ r.dimension_type }}</span></td>
+          <td><span class="badge">{{ r.dimension_value }}</span></td>
+          <td>{{ r.total_count }}</td>
+          <td>{{ r.success_count }}</td>
+          <td>{{ r.fail_count }}</td>
+          <td>{{ r.error_count }}</td>
+          <td>{{ r.success_pct }}</td>
+          <td>{{ r.fail_pct }}</td>
+          <td>{{ r.error_pct }}</td>
+          <td>{{ r.risk }}</td>
+          <td><span class="badge badge-level lvl-{{ rl|lower }}">{{ r.risk_level }}</span></td>
+          <td>{{ r.asset_adjusted_risk }}</td>
+          <td><span class="badge badge-level lvl-{{ arl|lower }}">{{ r.asset_adjusted_risk_level }}</span></td>
+          <td>{{ r.severity_sum }}</td>
+          <td>{{ r.failed_severity_sum }}</td>
+        </tr>
       {% else %}
-      <tr>
-        <td colspan="15" style="padding:16px;color:#64748b;">No records found.</td>
-      </tr>
+        <tr>
+          <td colspan="15" style="padding:16px;color:#64748b;">No records found.</td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>
+
+  {% endif %}
 </div>
 {% endblock %}

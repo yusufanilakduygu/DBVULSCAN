@@ -273,6 +273,74 @@ def edit_benchmark(benchmark_id):
     return render_template("benchmarks/form.html", bm=bm, is_new=False, mapped_checkpoints=mapped_checkpoints)
 
 
+# =========================================================
+# ✅ NEW: Category x Severity Distribution (Matrix)
+# =========================================================
+@benchmarks_bp.route("/<int:benchmark_id>/category_severity_dist", methods=["GET"])
+@login_required
+def benchmark_category_severity_dist(benchmark_id):
+    db = get_db()
+    cur = db.cursor()
+
+    # Load benchmark (header)
+    cur.execute(
+        "SELECT benchmark_id, code, name, db_type, version, level, status "
+        "FROM benchmarks WHERE benchmark_id=%s",
+        (benchmark_id,),
+    )
+    bm = cur.fetchone()
+    if not bm:
+        flash("Benchmark not found.", "danger")
+        return redirect(url_for("benchmarks.list_benchmarks"))
+
+    categories = ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]
+    severities = ["critical", "major", "minor", "caution"]  # (info intentionally excluded as per your matrix)
+
+    # Count mapped checkpoints by category + severity
+    cur.execute(
+        "SELECT c.Category AS category, c.Severity AS severity, COUNT(*) AS cnt "
+        "FROM benchmark_checkpoints bc "
+        "JOIN checkpoints c ON c.Id = bc.checkpoint_id "
+        "WHERE bc.benchmark_id=%s AND c.Severity IN ('critical','major','minor','caution') "
+        "GROUP BY c.Category, c.Severity",
+        (benchmark_id,),
+    )
+    rows = cur.fetchall() or []
+
+    # Normalize fetched rows into a dict
+    counts = {}  # (cat, sev) -> int
+    for r in rows:
+        cat = r.get("category") if isinstance(r, dict) else r[0]
+        sev = r.get("severity") if isinstance(r, dict) else r[1]
+        cnt = r.get("cnt") if isinstance(r, dict) else r[2]
+        counts[(str(cat), str(sev))] = int(cnt or 0)
+
+    # Build matrix rows with totals
+    matrix = []
+    col_totals = {sev: 0 for sev in severities}
+    grand_total = 0
+
+    for cat in categories:
+        row = {"category": cat, "cells": {}, "row_total": 0}
+        for sev in severities:
+            v = counts.get((cat, sev), 0)
+            row["cells"][sev] = v
+            row["row_total"] += v
+            col_totals[sev] += v
+            grand_total += v
+        matrix.append(row)
+
+    return render_template(
+        "benchmarks/category_severity_dist.html",
+        bm=bm,
+        categories=categories,
+        severities=severities,
+        matrix=matrix,
+        col_totals=col_totals,
+        grand_total=grand_total,
+    )
+
+
 # ✅ NEW: quick delete a mapped checkpoint from edit page
 @benchmarks_bp.route("/<int:benchmark_id>/checkpoints/<int:checkpoint_id>/delete", methods=["POST"])
 @login_required
