@@ -125,43 +125,100 @@
     <div class="section">
       <div class="section-title">Checkpoint Test Results</div>
 
-      <div class="table-wrap shadow-box">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th class="col-id">#</th>
-              <th>Checkpoint Name</th>
-              <th class="col-sev">Severity</th>
-              <th class="col-cat">Category</th>
-              <th class="col-res">Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for c in cp_rows %}
-            {% set sev = (c.checkpoint_severity or '')|lower %}
-            {% set tr = (c.test_result or '')|lower %}
-            <tr>
-              <td>{{ c.run_checkpoint_id }}</td>
-              <td class="checkpoint-name">{{ c.checkpoint_name }}</td>
-              <td>
-                {% if sev == 'critical' %}<span class="sev sev-critical">Critical</span>
-                {% elif sev == 'major' %}<span class="sev sev-major">Major</span>
-                {% elif sev == 'minor' %}<span class="sev sev-minor">Minor</span>
-                {% elif sev == 'caution' %}<span class="sev sev-caution">Caution</span>
-                {% else %}{{ (c.checkpoint_severity or '')|title }}{% endif %}
-              </td>
-              <td>{{ c.checkpoint_category }}</td>
-              <td>
-                {% if tr == 'fail' %}<span class="res-fail">Fail</span>
-                {% elif tr == 'pass' %}Pass
-                {% elif tr == 'error' %}Error
-                {% else %}{{ (c.test_result or '')|title }}{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      {#
+        Grouped by Category.
+        - Categories with no checkpoints are skipped.
+        - Inside each category: FAIL first (then ERROR, then PASS).
+      #}
+
+      {% for cat in report_categories %}
+        {% set cm = cat_metrics.get(cat) %}
+
+        {# NEW: category değiştiğinde boşluk (ilk category hariç) #}
+        {% if not loop.first %}
+          <div class="cat-gap"></div>
+        {% endif %}
+
+        <div class="cat-title">Category Name: {{ cat }}</div>
+
+        <div class="cat-sep"></div>
+
+        <div class="table-wrap shadow-box">
+          <table class="tbl tbl-cat-metrics">
+            <thead>
+              <tr>
+                <th class="th-multi">Standard<br>Risk</th>
+                <th class="th-multi">Standard<br>Risk Level</th>
+                <th class="th-multi">Asset-Adjusted<br>Risk</th>
+                <th class="th-multi">Asset-Adjusted<br>Risk Level</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% set rl = (cm.risk_level if cm else '') %}
+              {% set arl = (cm.asset_adjusted_risk_level if cm else '') %}
+              {% set rl_l = (rl or '')|lower %}
+              {% set arl_l = (arl or '')|lower %}
+              <tr>
+                <td>{{ (cm.risk if cm else '') }}</td>
+                <td>
+                  {% if rl_l == 'low' %}<span class="lvl lvl-low">{{ rl }}</span>
+                  {% elif rl_l == 'medium' %}<span class="lvl lvl-medium">{{ rl }}</span>
+                  {% elif rl_l == 'high' %}<span class="lvl lvl-high">{{ rl }}</span>
+                  {% elif rl_l == 'critical' %}<span class="lvl lvl-critical">{{ rl }}</span>
+                  {% else %}{{ rl }}{% endif %}
+                </td>
+                <td>{{ (cm.asset_adjusted_risk if cm else '') }}</td>
+                <td>
+                  {% if arl_l == 'low' %}<span class="lvl lvl-low">{{ arl }}</span>
+                  {% elif arl_l == 'medium' %}<span class="lvl lvl-medium">{{ arl }}</span>
+                  {% elif arl_l == 'high' %}<span class="lvl lvl-high">{{ arl }}</span>
+                  {% elif arl_l == 'critical' %}<span class="lvl lvl-critical">{{ arl }}</span>
+                  {% else %}{{ arl }}{% endif %}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="cat-sep"></div>
+
+        <div class="table-wrap shadow-box">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th class="col-id">#</th>
+                <th>Checkpoint Name</th>
+                <th class="col-sev">Severity</th>
+                <th class="col-res">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in cp_by_category.get(cat, []) %}
+                {% set sev = (c.checkpoint_severity or '')|lower %}
+                {% set tr = (c.test_result or '')|lower %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td class="checkpoint-name">{{ c.checkpoint_name }}</td>
+                  <td>
+                    {% if sev == 'critical' %}<span class="sev sev-critical">Critical</span>
+                    {% elif sev == 'major' %}<span class="sev sev-major">Major</span>
+                    {% elif sev == 'minor' %}<span class="sev sev-minor">Minor</span>
+                    {% elif sev == 'caution' %}<span class="sev sev-caution">Caution</span>
+                    {% else %}{{ (c.checkpoint_severity or '')|title }}{% endif %}
+                  </td>
+                  <td>
+                    {% if tr == 'fail' %}<span class="res-fail">Fail</span>
+                    {% elif tr == 'pass' %}Pass
+                    {% elif tr == 'error' %}Error
+                    {% else %}{{ (c.test_result or '')|title }}{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      {% endfor %}
     </div>
 
   </div>

@@ -78,6 +78,27 @@ html, body{
   background:#f0f2f5;
 }
 
+/* Category blocks in Checkpoint Test Results */
+.cat-title{
+  font-weight: 900;
+  font-size: 9.5pt;
+  margin: 0 0 2mm 0;
+}
+
+.cat-sep{
+  border-top: 1px solid #000;
+  margin: 1.5mm 0;
+}
+
+/* NEW: Space between categories */
+.cat-gap{
+  height: 4mm;   /* “bir satır boşluk” hissi */
+}
+
+.tbl-cat-metrics thead th{
+  background:#f0f2f5;
+}
+
 .res-fail{ color:#b00000; font-weight:900; }
 
 /* Risk box spacing */

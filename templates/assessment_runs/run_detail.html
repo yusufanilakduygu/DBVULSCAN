@@ -178,6 +178,11 @@
     <a class="btn btn-outline" href="{{ url_for('assessment_runs.report_assessment_run_summary', run_id=r.run_id) }}">
       Assessment Run Summary Report
     </a>
+
+    <!-- Detail Report button (PDF-only) -->
+    <a class="btn btn-outline" href="{{ url_for('assessment_runs.report_assessment_run_detail', run_id=r.run_id) }}">
+      Assessment Run Detail Report
+    </a>
   </div>
 </div>
 {% endblock %}

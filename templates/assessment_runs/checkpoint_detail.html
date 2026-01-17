@@ -78,14 +78,87 @@
   white-space:pre-wrap;
 }
 
+.section-title{
+  grid-column: span 12;
+  margin-top:6px;
+  font-size:15px;
+  font-weight:800;
+  color:#0f172a;
+  padding-top:6px;
+  border-top:1px solid #eef2f7;
+}
+
+/* Result box */
+.result-box{
+  border:1px solid #cbd5e1;
+  background:#fff;
+  border-radius:12px;
+  padding:10px 12px;
+}
+.result-box .textarea{
+  background:#fff;
+  border-color:#e5e9f2;
+  min-height:110px;
+}
+
+/* BADGES */
+.badge{
+  display:inline-block;
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:13px;
+  font-weight:800;
+  border:1px solid transparent;
+}
+
+/* Test Result */
+.badge-pass{
+  background:#dcfce7;
+  color:#166534;
+  border-color:#86efac;
+}
+.badge-fail{
+  background:#fee2e2;
+  color:#991b1b;
+  border-color:#fecaca;
+}
+.badge-error{
+  background:#ffedd5;
+  color:#9a3412;
+  border-color:#fed7aa;
+}
+
+/* Severity */
+.badge-critical{
+  background:#fee2e2;
+  color:#991b1b;
+  border-color:#fecaca;
+}
+.badge-major{
+  background:#ffedd5;
+  color:#9a3412;
+  border-color:#fed7aa;
+}
+.badge-minor{
+  background:#eff6ff;
+  color:#1d4ed8;
+  border-color:#bfdbfe;
+}
+.badge-caution{
+  background:#fffbeb;
+  color:#92400e;
+  border-color:#fde68a;
+}
+
 /* spans */
 .span-12{ grid-column: span 12; }
+.span-8 { grid-column: span 8; }
 .span-6 { grid-column: span 6; }
 .span-4 { grid-column: span 4; }
 
 /* responsive */
 @media (max-width: 900px){
-  .span-6,.span-4{ grid-column: span 12; }
+  .span-8,.span-6,.span-4{ grid-column: span 12; }
 }
 </style>
 
@@ -103,44 +176,81 @@
     </div>
   </div>
 
+  {% set tr = (r.test_result or '')|lower %}
+  {% set sev = (r.checkpoint_severity or '')|lower %}
+  {% set result_text = '' %}
+  {% if tr == 'pass' %}
+    {% set result_text = r.checkpoint_text_pass or '' %}
+  {% elif tr == 'fail' %}
+    {% set result_text = r.checkpoint_text_fail or '' %}
+  {% endif %}
+
   <div class="grid">
 
     <!-- Row 1 -->
-    <div class="field span-6">
+    <div class="field span-8">
       <label>Name</label>
       <input class="input" type="text" value="{{ r.checkpoint_name }}" readonly>
     </div>
 
-    <div class="field span-6">
-      <label>Test Result</label>
-      <input class="input" type="text" value="{{ r.test_result }}" readonly>
+    <div class="field span-4">
+      <label>Executed at</label>
+      <input class="input" type="text" value="{{ r.executed_at }}" readonly>
     </div>
 
     <!-- Row 2 -->
-    <div class="field span-6">
-      <label>Evidence</label>
-      <textarea class="textarea" readonly>{{ r.evidence_text or '' }}</textarea>
-    </div>
-
-    <div class="field span-6">
-      <label>Error Message</label>
-      <textarea class="textarea" readonly>{{ r.error_text or '' }}</textarea>
+    <div class="field span-12">
+      <label>Description</label>
+      <textarea class="textarea" readonly>{{ r.checkpoint_description or '' }}</textarea>
     </div>
 
     <!-- Row 3 -->
+    <div class="field span-4">
+      <label>Test Result</label>
+      <span class="badge
+        {% if tr == 'pass' %}badge-pass
+        {% elif tr == 'fail' %}badge-fail
+        {% elif tr == 'error' %}badge-error
+        {% endif %}">
+        {{ r.test_result }}
+      </span>
+    </div>
 
-
-    <div class="field span-6">
+    <div class="field span-4">
       <label>Category</label>
       <input class="input" type="text" value="{{ r.checkpoint_category }}" readonly>
     </div>
 
-    <div class="field span-6">
+    <div class="field span-4">
       <label>Severity</label>
-      <input class="input" type="text" value="{{ r.checkpoint_severity }}" readonly>
+      <span class="badge badge-{{ sev }}">
+        {{ r.checkpoint_severity }}
+      </span>
     </div>
 
     <!-- Row 4 -->
+    <div class="field span-12">
+      <label>Result Details</label>
+      <div class="result-box">
+        <textarea class="textarea" readonly>{{ result_text }}</textarea>
+      </div>
+    </div>
+
+    <!-- Row 5 -->
+    <div class="field span-12">
+      <label>Evidence</label>
+      <textarea class="textarea" readonly>{{ r.evidence_text or '' }}</textarea>
+    </div>
+
+    <!-- Row 6 -->
+    <div class="field span-12">
+      <label>Error Message</label>
+      <textarea class="textarea" readonly>{{ r.error_text or '' }}</textarea>
+    </div>
+
+    <!-- Section -->
+    <div class="section-title">Checkpoint Snapshot Data</div>
+
     <div class="field span-6">
       <label>Pre SQL Test</label>
       <textarea class="textarea" readonly>{{ r.checkpoint_pre_sql_test or '' }}</textarea>
@@ -151,13 +261,11 @@
       <textarea class="textarea" readonly>{{ r.checkpoint_sql_test or '' }}</textarea>
     </div>
 
-    <!-- Row 5 -->
     <div class="field span-12">
       <label>Test Condition</label>
       <input class="input" type="text" value="{{ r.checkpoint_test_condition or '' }}" readonly>
     </div>
 
-    <!-- Row 6 -->
     <div class="field span-6">
       <label>Pre SQL Detail</label>
       <textarea class="textarea" readonly>{{ r.checkpoint_pre_sql_detail or '' }}</textarea>
@@ -168,7 +276,6 @@
       <textarea class="textarea" readonly>{{ r.checkpoint_sql_detail or '' }}</textarea>
     </div>
 
-    <!-- Row 7 -->
     <div class="field span-6">
       <label>Text Pass</label>
       <textarea class="textarea" readonly>{{ r.checkpoint_text_pass or '' }}</textarea>
@@ -177,12 +284,6 @@
     <div class="field span-6">
       <label>Text Fail</label>
       <textarea class="textarea" readonly>{{ r.checkpoint_text_fail or '' }}</textarea>
-    </div>
-
-    <!-- Row 8 -->
-    <div class="field span-12">
-      <label>Description</label>
-      <textarea class="textarea" readonly>{{ r.checkpoint_description or '' }}</textarea>
     </div>
 
   </div>

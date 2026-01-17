@@ -22,6 +22,18 @@
 .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #e5e9f2;background:#f8fafc;}
 .link{color:#2563eb;text-decoration:none;font-weight:700;}
 .link:hover{text-decoration:underline;}
+
+/* severity */
+.badge-sev-critical{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+.badge-sev-major{border-color:#fed7aa;background:#fff7ed;color:#9a3412;}
+.badge-sev-minor{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8;}
+.badge-sev-caution{border-color:#fde68a;background:#fffbeb;color:#92400e;}
+
+/* test_result */
+.badge-res-fail{border-color:#fecaca;background:#fef2f2;color:#991b1b;font-weight:800;}
+.badge-res-error{border-color:#fed7aa;background:#fff7ed;color:#9a3412;font-weight:800;}
+.badge-res-pass{border-color:#bbf7d0;background:#f0fdf4;color:#166534;font-weight:800;}
+.badge-res-unknown{border-color:#e5e9f2;background:#f8fafc;color:#334155;font-weight:800;}
 </style>
 
 <div class="ds-wrap">
@@ -84,15 +96,30 @@
     </thead>
     <tbody>
       {% for r in rows %}
+      {% set sev = (r.checkpoint_severity or '')|lower %}
+      {% set res = (r.test_result or '')|lower %}
       <tr>
         <td>
           <a class="link" href="{{ url_for('assessment_runs.checkpoint_detail', run_id=run.run_id, run_checkpoint_id=r.run_checkpoint_id) }}">
             {{ r.checkpoint_name }}
           </a>
         </td>
-        <td><span class="badge">{{ r.checkpoint_severity }}</span></td>
+        <td>
+          <span class="badge {% if sev %}badge-sev-{{ sev }}{% endif %}">
+            {{ r.checkpoint_severity }}
+          </span>
+        </td>
         <td><span class="badge">{{ r.checkpoint_category }}</span></td>
-        <td><span class="badge">{{ r.test_result }}</span></td>
+        <td>
+          <span class="badge
+            {% if res == 'fail' %}badge-res-fail
+            {% elif res == 'error' %}badge-res-error
+            {% elif res == 'pass' %}badge-res-pass
+            {% else %}badge-res-unknown
+            {% endif %}">
+            {{ r.test_result }}
+          </span>
+        </td>
       </tr>
       {% else %}
       <tr>

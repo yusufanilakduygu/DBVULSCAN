@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Assessment Run Detail Report</title>
+  {% if css_href %}
+  <link rel="stylesheet" href="{{ css_href }}">
+  {% endif %}
+</head>
+
+<body>
+  <div class="report">
+
+    <h1 class="report-title">Assessment Run Detail Report</h1>
+
+    <!-- Assessment Info -->
+    <div class="box-title">Assessment Info</div>
+    <div class="summary-box shadow-box">
+      <div class="kv">
+        <div class="kv-row"><div class="kv-key">Runid</div><div class="kv-sep">:</div><div class="kv-val">{{ r.run_id }}</div></div>
+        <div class="kv-row"><div class="kv-key">Report Execution Date</div><div class="kv-sep">:</div><div class="kv-val">{{ r.executed_at }}</div></div>
+
+        <div class="kv-row">
+          <div class="kv-key">Assessment Status</div><div class="kv-sep">:</div>
+          <div class="kv-val">
+            {% set st = (r.status or '')|lower %}
+            {% if st in ('success','successful') %}
+              <span class="badge status-success">Successful</span>
+            {% elif st in ('failed','fail') %}
+              <span class="badge status-fail">Failed</span>
+            {% elif st in ('error','unreachable') %}
+              <span class="badge status-error">Error</span>
+            {% else %}
+              <span class="badge status-na">{{ r.status }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="kv-row"><div class="kv-key">Assessment Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.assessment_name }}</div></div>
+        <div class="kv-row"><div class="kv-key">Database Type</div><div class="kv-sep">:</div><div class="kv-val">{{ r.db_type }}</div></div>
+        <div class="kv-row"><div class="kv-key">Datasource Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.datasource_name }}</div></div>
+        <div class="kv-row"><div class="kv-key">Benchmark Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.benchmark_name }}</div></div>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="section">
+      <div class="section-title">Metrics</div>
+      <div class="table-wrap shadow-box">
+        <table class="tbl tbl-metrics">
+          <thead>
+            <tr>
+              <th class="th-multi">Total<br>Count</th>
+              <th class="th-multi">Passed<br>Count</th>
+              <th class="th-multi">Failed<br>Count</th>
+              <th class="th-multi">Errors<br>Count</th>
+              <th class="th-multi">Success<br>Rate (%)</th>
+              <th class="th-multi">Standard<br>Risk</th>
+              <th class="th-multi">Asset-Adjusted<br>Risk</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{{ r.total_count }}</td>
+              <td>{{ r.success_count }}</td>
+              <td>{{ r.fail_count }}</td>
+              <td>{{ r.error_count }}</td>
+              <td>{{ r.success_pct }}</td>
+              <td>{{ r.risk }}</td>
+              <td>{{ r.asset_adjusted_risk }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Risk Levels -->
+    <div class="section">
+      <div class="section-title">Risk Levels</div>
+
+      <div class="risk-box shadow-box">
+        <div class="risk-padding-top"></div>
+
+        <div class="risk-block">
+          <div class="risk-label">Standard Risk Level</div>
+          {% set rl = (r.risk_level or '')|lower %}
+          <div>
+            {% if rl == 'low' %}<span class="lvl lvl-low">Low</span>
+            {% elif rl == 'medium' %}<span class="lvl lvl-medium">Medium</span>
+            {% elif rl == 'high' %}<span class="lvl lvl-high">High</span>
+            {% elif rl == 'critical' %}<span class="lvl lvl-critical">Critical</span>
+            {% else %}<span class="lvl">{{ r.risk_level }}</span>{% endif %}
+          </div>
+          {% if r.risk_level_desc %}
+          <div class="risk-desc">{{ r.risk_level_desc }}</div>
+          {% endif %}
+        </div>
+
+        <div class="risk-separator"></div>
+
+        <div class="risk-block">
+          <div class="risk-label">Asset-Adjusted Risk Level</div>
+          {% set arl = (r.asset_adjusted_risk_level or '')|lower %}
+          <div>
+            {% if arl == 'low' %}<span class="lvl lvl-low">Low</span>
+            {% elif arl == 'medium' %}<span class="lvl lvl-medium">Medium</span>
+            {% elif arl == 'high' %}<span class="lvl lvl-high">High</span>
+            {% elif arl == 'critical' %}<span class="lvl lvl-critical">Critical</span>
+            {% else %}<span class="lvl">{{ r.asset_adjusted_risk_level }}</span>{% endif %}
+          </div>
+          {% if r.asset_risk_level_desc %}
+          <div class="risk-desc">{{ r.asset_risk_level_desc }}</div>
+          {% endif %}
+        </div>
+
+        <div class="risk-padding-bottom"></div>
+      </div>
+    </div>
+
+    <!-- Category Based Metrics -->
+    <div class="section">
+      <div class="section-title">Category Based Metrics</div>
+
+      <div class="table-wrap shadow-box">
+        <table class="tbl tbl-cat-matrix">
+          <thead>
+            <tr>
+              <th class="mx-left mx-vsep" rowspan="2">Category</th>
+
+              {% for sev in severities %}
+                <th class="mx-subhead" colspan="4">{{ sev|title }}</th>
+              {% endfor %}
+
+              <th class="mx-subhead mx-vsep" colspan="4">Risk</th>
+            </tr>
+            <tr>
+              {% for sev in severities %}
+                <th class="mx-subhead">pass</th>
+                <th class="mx-subhead">fail</th>
+                <th class="mx-subhead">error</th>
+                <th class="mx-subhead mx-group-sep">total</th>
+              {% endfor %}
+
+              <th class="th-multi">Standard<br>Risk</th>
+              <th class="th-multi">Standard<br>Risk Level</th>
+              <th class="th-multi">Asset-Adjusted<br>Risk</th>
+              <th class="th-multi">Asset-Adjusted<br>Risk Level</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for cat in report_categories %}
+              {% set risk = cat_risk_map.get(cat) %}
+              {% set rl = (risk.risk_level if risk and risk.risk_level else '') %}
+              {% set arl = (risk.asset_adjusted_risk_level if risk and risk.asset_adjusted_risk_level else '') %}
+              {% set rl_l = (rl or '')|lower %}
+              {% set arl_l = (arl or '')|lower %}
+              <tr>
+                <td class="mx-left mx-vsep"><span class="badge">{{ cat }}</span></td>
+
+                {% for sev in severities %}
+                  {% set cell = (cat_matrix.get(cat, {}) or {}).get(sev) %}
+                  <td class="mx-num">{{ cell.pass_count if cell else 0 }}</td>
+                  <td class="mx-num">{{ cell.fail_count if cell else 0 }}</td>
+                  <td class="mx-num">{{ cell.error_count if cell else 0 }}</td>
+                  <td class="mx-num mx-group-sep">{{ cell.total_count if cell else 0 }}</td>
+                {% endfor %}
+
+                <td>{{ (risk.risk if risk else '') }}</td>
+                <td>
+                  {% if rl_l == 'low' %}<span class="lvl lvl-low">{{ rl }}</span>
+                  {% elif rl_l == 'medium' %}<span class="lvl lvl-medium">{{ rl }}</span>
+                  {% elif rl_l == 'high' %}<span class="lvl lvl-high">{{ rl }}</span>
+                  {% elif rl_l == 'critical' %}<span class="lvl lvl-critical">{{ rl }}</span>
+                  {% else %}{{ rl }}{% endif %}
+                </td>
+                <td>{{ (risk.asset_adjusted_risk if risk else '') }}</td>
+                <td>
+                  {% if arl_l == 'low' %}<span class="lvl lvl-low">{{ arl }}</span>
+                  {% elif arl_l == 'medium' %}<span class="lvl lvl-medium">{{ arl }}</span>
+                  {% elif arl_l == 'high' %}<span class="lvl lvl-high">{{ arl }}</span>
+                  {% elif arl_l == 'critical' %}<span class="lvl lvl-critical">{{ arl }}</span>
+                  {% else %}{{ arl }}{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Checkpoints (grouped by Category) -->
+    <div class="section">
+      <div class="section-title">Checkpoint Test Results</div>
+
+      {% for cat in report_categories %}
+        {% if not loop.first %}
+          <div class="cat-gap"></div>
+        {% endif %}
+
+        {% set risk = cat_risk_map.get(cat) %}
+        {% set std_risk = (risk.risk if risk and risk.risk else '') %}
+        {% set std_lvl = (risk.risk_level if risk and risk.risk_level else '') %}
+        {% set a_risk = (risk.asset_adjusted_risk if risk and risk.asset_adjusted_risk else '') %}
+        {% set a_lvl = (risk.asset_adjusted_risk_level if risk and risk.asset_adjusted_risk_level else '') %}
+
+        {% set std_lvl_l = (std_lvl or '')|lower %}
+        {% set a_lvl_l = (a_lvl or '')|lower %}
+
+        <div class="cat-head">
+          <div class="cat-title">Category Name: <span class="badge">{{ cat }}</span></div>
+
+          <div class="cat-risk">
+            <div class="cat-risk-item">
+              <span class="cat-risk-key">Std Risk</span>
+              <span class="cat-risk-val">{% if std_risk != '' %}{{ std_risk }}{% else %}-{% endif %}</span>
+              {% if std_lvl %}
+                {% if std_lvl_l == 'low' %}<span class="lvl lvl-low">{{ std_lvl }}</span>
+                {% elif std_lvl_l == 'medium' %}<span class="lvl lvl-medium">{{ std_lvl }}</span>
+                {% elif std_lvl_l == 'high' %}<span class="lvl lvl-high">{{ std_lvl }}</span>
+                {% elif std_lvl_l == 'critical' %}<span class="lvl lvl-critical">{{ std_lvl }}</span>
+                {% else %}<span class="lvl">{{ std_lvl }}</span>{% endif %}
+              {% else %}
+                <span class="lvl">-</span>
+              {% endif %}
+            </div>
+
+            <div class="cat-risk-item">
+              <span class="cat-risk-key">Asset-Adjusted</span>
+              <span class="cat-risk-val">{% if a_risk != '' %}{{ a_risk }}{% else %}-{% endif %}</span>
+              {% if a_lvl %}
+                {% if a_lvl_l == 'low' %}<span class="lvl lvl-low">{{ a_lvl }}</span>
+                {% elif a_lvl_l == 'medium' %}<span class="lvl lvl-medium">{{ a_lvl }}</span>
+                {% elif a_lvl_l == 'high' %}<span class="lvl lvl-high">{{ a_lvl }}</span>
+                {% elif a_lvl_l == 'critical' %}<span class="lvl lvl-critical">{{ a_lvl }}</span>
+                {% else %}<span class="lvl">{{ a_lvl }}</span>{% endif %}
+              {% else %}
+                <span class="lvl">-</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="cat-sep"></div>
+        <div class="cat-cp-gap"></div>
+
+        {% set cp_list = cp_by_category.get(cat, []) %}
+
+        {% if not cp_list %}
+          <div class="no-cp">No checkpoint results are available for this category.</div>
+        {% else %}
+          {% for c in cp_list %}
+            {% set sev = (c.checkpoint_severity or '')|lower %}
+            {% set tr = (c.test_result or '')|lower %}
+
+            <div class="cp-block shadow-box">
+              <table class="tbl tbl-cp-head">
+                <colgroup>
+                  <col class="col-id">
+                  <col class="col-name">
+                  <col class="col-sev">
+                  <col class="col-res">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="col-id">#</th>
+                    <th class="col-name">Checkpoint Name</th>
+                    <th class="col-sev">Severity</th>
+                    <th class="col-res">Result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="col-id">{{ loop.index }}</td>
+                    <td class="col-name checkpoint-name">{{ c.checkpoint_name }}</td>
+
+                    <td class="col-sev">
+                      {% if sev == 'critical' %}<span class="sev sev-critical">Critical</span>
+                      {% elif sev == 'major' %}<span class="sev sev-major">Major</span>
+                      {% elif sev == 'minor' %}<span class="sev sev-minor">Minor</span>
+                      {% elif sev == 'caution' %}<span class="sev sev-caution">Caution</span>
+                      {% else %}<span class="sev">{{ (c.checkpoint_severity or '')|title }}</span>{% endif %}
+                    </td>
+
+                    <td class="col-res">
+                      {% if tr == 'pass' %}<span class="res res-pass">Pass</span>
+                      {% elif tr == 'fail' %}<span class="res res-fail">Fail</span>
+                      {% elif tr == 'error' %}<span class="res res-error">Error</span>
+                      {% else %}<span class="res">{{ (c.test_result or '')|title }}</span>{% endif %}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {% if tr == 'pass' %}
+                {% set vtxt = (c.checkpoint_text_pass or '') %}
+              {% elif tr == 'fail' %}
+                {% set vtxt = (c.checkpoint_text_fail or '') %}
+              {% else %}
+                {% set vtxt = '' %}
+              {% endif %}
+
+              {% if vtxt %}
+                <div class="cp-subtitle">Test Result</div>
+                <div class="cp-text">{{ vtxt }}</div>
+              {% endif %}
+
+              {% if tr == 'fail' %}
+                {% set etxt = (c.evidence_text or '') %}
+                <div class="cp-subtitle">Evidence</div>
+                <div class="cp-text">{% if etxt %}{{ etxt }}{% else %}-{% endif %}</div>
+              {% elif tr == 'error' %}
+                {% set etxt = (c.error_text or '') %}
+                <div class="cp-subtitle">Evidence</div>
+                <div class="cp-text">{% if etxt %}{{ etxt }}{% else %}-{% endif %}</div>
+              {% endif %}
+
+            </div>
+          {% endfor %}
+        {% endif %}
+
+      {% endfor %}
+    </div>
+
+  </div>
+</body>
+</html>

@@ -29,6 +29,15 @@ STATUS AKIŞI (ANLAŞTIĞIMIZ FINAL):
 - SQL testleri sırasında hata olursa: error (run devam eder, final error)
 - Sorunsuz biterse: success
 - Kill/crash olursa: incomplete kalır (handle edilemez)
+
+EK KRİTİK KURAL (GERİ GELDİ):
+- assessment_run_checkpoints insert edilirken:
+    * test_result='fail' ise:
+        - önce checkpoint_pre_sql_detail (varsa) çalıştır
+        - ardından checkpoint_sql_detail çalıştır
+        - checkpoint_sql_detail çıktısını evidence_text içine yaz
+    * test_result='error' ise:
+        - error_text doldur (zaten vardı)
 """
 
 from __future__ import annotations
@@ -63,6 +72,10 @@ ASSET_IMPACT_WEIGHT = {
 }
 
 MAX_ASSET_IMPACT = 5
+
+# evidence_text / error_text çok büyümesin diye soft limit
+MAX_EVIDENCE_CHARS = 200_000
+MAX_ERROR_CHARS = 50_000
 
 
 # -----------------------------
@@ -105,6 +118,150 @@ def _execute_sql(conn, sql):
         rows = []
     cols = [d[0] for d in cur.description] if cur.description else []
     return cols, rows
+
+
+def _safe_limit_text(text: Optional[str], limit: int) -> Optional[str]:
+    if text is None:
+        return None
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "\n... [TRUNCATED] ..."
+
+
+def _format_sql_result_for_evidence(cols: List[str], rows: List[tuple], max_rows: int = 200) -> str:
+    """
+    evidence_text için SQLCMD / SQLPLUS tarzı tablo çıktısı üretir.
+
+    KRİTİK FIX:
+    - Bazı durumlarda hücre değeri string olarak "('text',)" formatında geliyor.
+      Bu durumda parantez/virgül aslında string'in kendisi.
+      Çözüm: Bu tuple-repr string'i sanitize edip iç metni çıkar.
+    """
+
+    from collections.abc import Sequence
+
+    def _is_row_like(x: Any) -> bool:
+        return isinstance(x, Sequence) and not isinstance(x, (str, bytes, bytearray))
+
+    def _unwrap_singleton(v: Any) -> Any:
+        while _is_row_like(v) and len(v) == 1:
+            v = v[0]
+        return v
+
+    # ==============================
+    # SADECE BURASI VAR (KALDI) + KULLANILACAK
+    # ==============================
+    def _sanitize_tuple_repr_string(s: str) -> str:
+        """
+        Minimum garanti kural:
+        - string başı '(' ise kaldır
+        - string sonu ',)' ise kaldır
+        İçerideki tırnaklar/boşluklar korunur.
+        NOT: sonda padding olabileceği için wrapper kontrolünü strip() ile yapıyoruz.
+        """
+        if not s:
+            return s
+
+        ss = s.strip()
+
+        # ( ile başlıyorsa at
+        if ss.startswith("("):
+            ss = ss[1:]
+
+        # ,) ile bitiyorsa at
+        if ss.endswith(",)"):
+            ss = ss[:-2]
+
+        return ss
+
+    def _cell_to_str(v: Any) -> str:
+        # unwrap singleton row/cell
+        v = _unwrap_singleton(v)
+        if v is None:
+            return ""
+        # >>> KRİTİK DÜZELTME:
+        # v string olmasa bile str(v) -> "('sa',)" geliyor.
+        # Bu yüzden HER ZAMAN str() yapıp sanitize ediyoruz.
+        s = str(v)
+        return _sanitize_tuple_repr_string(s)
+
+    if not cols:
+        return ""
+
+    take_rows = (rows or [])[:max_rows]
+
+    # ==========================
+    # TEK KOLON
+    # ==========================
+    if len(cols) == 1:
+        col_name = str(cols[0])
+
+        values: List[str] = []
+        for r in take_rows:
+            if r is None:
+                values.append("")
+                continue
+
+            if _is_row_like(r):
+                values.append(_cell_to_str(r[0]) if len(r) else "")
+            else:
+                values.append(_cell_to_str(r))
+
+        width = max(len(col_name), max((len(v) for v in values), default=0))
+
+        lines = [col_name, "-" * width]
+        lines.extend(values)
+
+        if rows and len(rows) > max_rows:
+            lines.append(f"... ({len(rows) - max_rows} more rows truncated) ...")
+
+        return "\n".join(lines)
+
+    # ==========================
+    # ÇOKLU KOLON
+    # ==========================
+    str_rows: List[List[str]] = []
+    for r in take_rows:
+        if r is None:
+            str_rows.append([""] * len(cols))
+            continue
+
+        if not _is_row_like(r):
+            r = (r,)
+
+        row_cells = [_cell_to_str(v) for v in r]
+        str_rows.append(row_cells)
+
+    # eksik kolon varsa doldur, fazla varsa kes
+    norm_rows: List[List[str]] = []
+    for r in str_rows:
+        if len(r) < len(cols):
+            r = r + ([""] * (len(cols) - len(r)))
+        elif len(r) > len(cols):
+            r = r[: len(cols)]
+        norm_rows.append(r)
+
+    widths: List[int] = []
+    for i, c in enumerate(cols):
+        max_val_len = 0
+        for rr in norm_rows:
+            max_val_len = max(max_val_len, len(rr[i]))
+        widths.append(max(len(str(c)), max_val_len))
+
+    header_parts = [str(cols[i]).ljust(widths[i]) for i in range(len(cols))]
+    header = "  ".join(header_parts).rstrip()
+    sep = "-" * max(1, len(header))
+
+    lines: List[str] = [header, sep]
+    for rr in norm_rows:
+        parts = [rr[i].ljust(widths[i]) for i in range(len(cols))]
+        lines.append("  ".join(parts).rstrip())
+
+    if rows and len(rows) > max_rows:
+        lines.append(f"... ({len(rows) - max_rows} more rows truncated) ...")
+
+    return "\n".join(lines)
+
 
 
 # -----------------------------
@@ -323,10 +480,15 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
         for cp_id in _load_checkpoint_ids(cur, assessment["benchmark_id"]):
             cp = _load_checkpoint(cur, cp_id)
 
+            evidence_text: Optional[str] = None
+            error_text: Optional[str] = None
+
             try:
+                # pre_sql_test (varsa) koş
                 if cp.pre_sql_test:
                     _execute_sql(conn, cp.pre_sql_test)
 
+                # sql_test koş ve koşul değerlendir
                 _, rows = _execute_sql(conn, cp.sql_test)
                 value = _fetch_first_cell(rows)
                 (ok, _), err = evaluate_condition(value, cp.test_condition)
@@ -335,13 +497,31 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
                     raise RuntimeError(err)
 
                 result = "pass" if ok else "fail"
-                error_text = None
+
+                # -----------------------------
+                # KRİTİK: fail ise DETAIL SQL çalıştır + evidence_text doldur
+                # -----------------------------
+                if result == "fail":
+                    # 1) pre_sql_detail (varsa) önce çalıştır
+                    if (cp.pre_sql_detail or "").strip():
+                        _execute_sql(conn, cp.pre_sql_detail)
+
+                    # 2) sql_detail çalıştır (varsa sonuçtan evidence üret)
+                    detail_sql = (cp.sql_detail or "").strip()
+                    if detail_sql:
+                        d_cols, d_rows = _execute_sql(conn, detail_sql)
+                        evidence_text = _format_sql_result_for_evidence(d_cols, d_rows)
+                        evidence_text = _safe_limit_text(evidence_text, MAX_EVIDENCE_CHARS)
+                    else:
+                        evidence_text = ""
 
             except Exception as e:
                 result = "error"
-                error_text = str(e)
+                error_text = _safe_limit_text(str(e), MAX_ERROR_CHARS)
                 had_error = True
+                evidence_text = None  # error'da evidence yazma
 
+            # INSERT snapshot + result
             cur.execute(
                 """
                 INSERT INTO assessment_run_checkpoints
@@ -351,8 +531,8 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
                  checkpoint_pre_sql_test, checkpoint_sql_test, checkpoint_test_condition,
                  checkpoint_pre_sql_detail, checkpoint_sql_detail,
                  checkpoint_text_pass, checkpoint_text_fail,
-                 test_result, error_text)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                 test_result, evidence_text, error_text)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
                     run_month,
@@ -370,6 +550,7 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
                     cp.text_pass,
                     cp.text_fail,
                     result,
+                    evidence_text,
                     error_text,
                 ),
             )

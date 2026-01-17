@@ -228,7 +228,29 @@ def report_assessment_run_summary(run_id: int):
         row2 = cur.fetchone()
         r["asset_risk_level_desc"] = (row2["description"] if row2 and row2.get("description") else "") if isinstance(r, dict) else ""
 
-        # Checkpoints (error -> fail -> pass)
+        # Category Risk Map (dimension_type='category' in assessment_run_metrics)
+        cur.execute(
+            """
+            SELECT
+              dimension_value,
+              risk,
+              risk_level,
+              asset_adjusted_risk,
+              asset_adjusted_risk_level
+            FROM assessment_run_metrics
+            WHERE run_id=%s AND dimension_type='category'
+            ORDER BY dimension_value ASC
+            """,
+            (run_id,),
+        )
+        cat_metric_rows = cur.fetchall() or []
+        cat_metrics: Dict[str, Dict[str, Any]] = {}
+        for cm in cat_metric_rows:
+            dv = cm.get("dimension_value")
+            if dv:
+                cat_metrics[str(dv)] = cm
+
+        # Checkpoints (FAIL -> ERROR -> PASS) (grouping in Python)
         cur.execute(
             """
             SELECT
@@ -239,18 +261,37 @@ def report_assessment_run_summary(run_id: int):
               test_result
             FROM assessment_run_checkpoints
             WHERE run_id=%s
-            ORDER BY
-              CASE test_result
-                WHEN 'error' THEN 1
-                WHEN 'fail'  THEN 2
-                WHEN 'pass'  THEN 3
-                ELSE 9
-              END,
-              run_checkpoint_id ASC
             """,
             (run_id,),
         )
-        cp_rows = cur.fetchall()
+        all_cp_rows = cur.fetchall() or []
+
+        # Group by category
+        cp_by_category: Dict[str, List[Dict[str, Any]]] = {}
+        for row in all_cp_rows:
+            cat = (row.get("checkpoint_category") or "").strip()
+            if not cat:
+                continue
+            cp_by_category.setdefault(cat, []).append(row)
+
+        # Sort inside each category: FAIL first (then ERROR, then PASS), then Severity, then id
+        res_pri = {"fail": 1, "error": 2, "pass": 3}
+        sev_pri = {"critical": 1, "major": 2, "minor": 3, "caution": 4}
+
+        def _key(x: Dict[str, Any]):
+            tr = (x.get("test_result") or "").lower()
+            sv = (x.get("checkpoint_severity") or "").lower()
+            return (
+                res_pri.get(tr, 9),
+                sev_pri.get(sv, 9),
+                int(x.get("run_checkpoint_id") or 0),
+            )
+
+        for cat, items in cp_by_category.items():
+            items.sort(key=_key)
+
+        categories_order = ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]
+        report_categories = [c for c in categories_order if c in cp_by_category]
 
     finally:
         try:
@@ -262,7 +303,9 @@ def report_assessment_run_summary(run_id: int):
     html_str = render_template(
         "assessment_runs/report_assessment_run_summary.html",
         r=r,
-        cp_rows=cp_rows,
+        report_categories=report_categories,
+        cp_by_category=cp_by_category,
+        cat_metrics=cat_metrics,
         css_href="",  # PDF uses CSS file directly
     )
 
@@ -274,7 +317,6 @@ def report_assessment_run_summary(run_id: int):
 
     resp = make_response(pdf_bytes)
     resp.headers["Content-Type"] = "application/pdf"
-    # Oracle tool hissi: tarayıcıda aç (inline). İstersen attachment yaparsın.
     resp.headers["Content-Disposition"] = f'inline; filename="assessment_run_summary_run_{run_id}.pdf"'
     return resp
 
@@ -286,196 +328,186 @@ def report_assessment_run_summary_pdf(run_id: int):
 
 
 # -----------------------------
-# CHECKPOINTS: session filters per run_id
+# REPORT: Assessment Run Detail (PDF only)
 # -----------------------------
-def _get_cp_filters(run_id: int) -> Dict[str, str]:
-    keys = ["severity", "category", "result"]
-    store_key = f"assessment_run_checkpoints_filters:{run_id}"
-    saved = session.get(store_key, {}) if isinstance(session.get(store_key), dict) else {}
-    out: Dict[str, str] = {k: (saved.get(k, "") or "") for k in keys}
-
-    touched = False
-    for k in keys:
-        if k in request.args:
-            out[k] = (request.args.get(k, "") or "").strip()
-            touched = True
-
-    if touched:
-        session[store_key] = out
-
-    return out
-
-
-@assessment_runs_bp.route("/<int:run_id>/checkpoints", methods=["GET"])
-def checkpoints_list(run_id: int):
-    # reset filters
-    if request.args.get("reset") == "1":
-        session.pop(f"assessment_run_checkpoints_filters:{run_id}", None)
-        return redirect(url_for("assessment_runs.checkpoints_list", run_id=run_id))
-
-    f = _get_cp_filters(run_id)
-
-    try:
-        page = int(request.args.get("page", "1"))
-    except Exception:
-        page = 1
-    if page < 1:
-        page = 1
-
-    where: List[str] = ["run_id = %s"]
-    params: List[Any] = [run_id]
-
-    if f["severity"]:
-        where.append("checkpoint_severity = %s")
-        params.append(f["severity"])
-    if f["category"]:
-        where.append("checkpoint_category = %s")
-        params.append(f["category"])
-    if f["result"]:
-        where.append("test_result = %s")
-        params.append(f["result"])
-
-    where_sql = " WHERE " + " AND ".join(where)
+@assessment_runs_bp.route("/<int:run_id>/report_detail", methods=["GET"])
+def report_assessment_run_detail(run_id: int):
+    """
+    PDF-only endpoint for Assessment Run Detail Report.
+    Keeps the Summary Report visual standard (same font/palette/badges).
+    """
+    from weasyprint import HTML, CSS
 
     db = get_db()
     try:
         cur = db.cursor()
 
-        # run header info
-        cur.execute("SELECT run_id, assessment_name, executed_at FROM assessment_runs WHERE run_id=%s LIMIT 1", (run_id,))
-        run = cur.fetchone()
-        if not run:
-            abort(404)
-
-        # count
-        cur.execute("SELECT COUNT(*) AS cnt FROM assessment_run_checkpoints" + where_sql, params)
-        total_records = int(cur.fetchone()["cnt"] or 0)
-        total_pages = max(1, int(ceil(total_records / PAGE_SIZE))) if total_records else 1
-        if page > total_pages:
-            page = total_pages
-
-        offset = (page - 1) * PAGE_SIZE
-
-        # list
+        # Run snapshot (same fields as summary)
         cur.execute(
-            "SELECT run_checkpoint_id, checkpoint_name, checkpoint_severity, checkpoint_category, test_result "
-            "FROM assessment_run_checkpoints"
-            + where_sql
-            + " ORDER BY run_checkpoint_id ASC "
-            "LIMIT %s OFFSET %s",
-            params + [PAGE_SIZE, offset],
-        )
-        rows = cur.fetchall()
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
+            """
+            SELECT
+              run_id,
+              executed_at,
+              status,
+              assessment_name,
+              db_type,
+              datasource_name,
+              benchmark_name,
 
-    return render_template(
-        "assessment_runs/checkpoints_list.html",
-        run=run,
-        rows=rows,
-        filters=f,
-        page=page,
-        total_pages=total_pages,
-        total_records=total_records,
-    )
+              total_count,
+              success_count,
+              fail_count,
+              error_count,
+              success_pct,
+              risk,
+              asset_adjusted_risk,
 
-
-@assessment_runs_bp.route("/<int:run_id>/checkpoints/<int:run_checkpoint_id>", methods=["GET"])
-def checkpoint_detail(run_id: int, run_checkpoint_id: int):
-    db = get_db()
-    try:
-        cur = db.cursor()
-
-        cur.execute("SELECT run_id, assessment_name, executed_at FROM assessment_runs WHERE run_id=%s LIMIT 1", (run_id,))
-        run = cur.fetchone()
-
-        cur.execute(
-            "SELECT * FROM assessment_run_checkpoints WHERE run_id=%s AND run_checkpoint_id=%s LIMIT 1",
-            (run_id, run_checkpoint_id),
+              risk_level,
+              asset_adjusted_risk_level
+            FROM assessment_runs
+            WHERE run_id=%s
+            LIMIT 1
+            """,
+            (run_id,),
         )
         r = cur.fetchone()
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
-
-    if not run or not r:
-        abort(404)
-
-    return render_template("assessment_runs/checkpoint_detail.html", run=run, r=r)
-
-
-@assessment_runs_bp.route("/<int:run_id>/metrics", methods=["GET"])
-def metrics_list(run_id: int):
-    tab = (request.args.get("tab", "general") or "general").strip().lower()
-    if tab not in ("general", "category"):
-        tab = "general"
-
-    db = get_db()
-    try:
-        cur = db.cursor()
-
-        cur.execute("SELECT run_id, assessment_name, executed_at FROM assessment_runs WHERE run_id=%s LIMIT 1", (run_id,))
-        run = cur.fetchone()
-        if not run:
+        if not r:
             abort(404)
 
-        cur.execute(
-            "SELECT run_metric_id, dimension_type, dimension_value, total_count, success_count, fail_count, error_count, "
-            "success_pct, fail_pct, error_pct, risk, risk_level, asset_adjusted_risk, asset_adjusted_risk_level, "
-            "severity_sum, failed_severity_sum, executed_at "
-            "FROM assessment_run_metrics "
-            "WHERE run_id=%s "
-            "ORDER BY dimension_type ASC, dimension_value ASC",
-            (run_id,),
-        )
-        rows = cur.fetchall()
+        # Risk level descriptions
+        cur.execute("SELECT description FROM risk_levels WHERE risk_level=%s LIMIT 1", (r["risk_level"],))
+        row1 = cur.fetchone()
+        r["risk_level_desc"] = (row1["description"] if row1 and row1.get("description") else "") if isinstance(r, dict) else ""
 
-        # Category x Severity execution metrics
         cur.execute(
-            "SELECT category, severity, total_count, pass_count, fail_count, error_count "
-            "FROM assessment_run_category_metrics "
-            "WHERE run_id=%s",
+            "SELECT description FROM risk_levels WHERE risk_level=%s LIMIT 1",
+            (r["asset_adjusted_risk_level"],),
+        )
+        row2 = cur.fetchone()
+        r["asset_risk_level_desc"] = (row2["description"] if row2 and row2.get("description") else "") if isinstance(r, dict) else ""
+
+        # Category risk map (from assessment_run_metrics)
+        cur.execute(
+            """
+            SELECT
+              dimension_value,
+              risk,
+              risk_level,
+              asset_adjusted_risk,
+              asset_adjusted_risk_level
+            FROM assessment_run_metrics
+            WHERE run_id=%s AND dimension_type='category'
+            ORDER BY dimension_value ASC
+            """,
             (run_id,),
         )
-        cat_rows = cur.fetchall()
+        cat_metric_rows = cur.fetchall() or []
+        cat_risk_map: Dict[str, Dict[str, Any]] = {}
+        for cm in cat_metric_rows:
+            dv = cm.get("dimension_value")
+            if dv:
+                cat_risk_map[str(dv)] = cm
+
+        # Category x Severity matrix (assessment_run_category_metrics)
+        cur.execute(
+            """
+            SELECT category, severity, total_count, pass_count, fail_count, error_count
+            FROM assessment_run_category_metrics
+            WHERE run_id=%s
+            """,
+            (run_id,),
+        )
+        cat_rows = cur.fetchall() or []
+
+        cat_matrix: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        for cr in cat_rows:
+            c = cr.get("category")
+            s = cr.get("severity")
+            if not c or not s:
+                continue
+            cat_matrix.setdefault(str(c), {})[str(s)] = cr
+
+        # Checkpoints with detailed texts (grouped by Category)
+        cur.execute(
+            """
+            SELECT
+              run_checkpoint_id,
+              checkpoint_name,
+              checkpoint_severity,
+              checkpoint_category,
+              test_result,
+              checkpoint_text_pass,
+              checkpoint_text_fail,
+              evidence_text,
+              error_text
+            FROM assessment_run_checkpoints
+            WHERE run_id=%s
+            """,
+            (run_id,),
+        )
+        all_cp_rows = cur.fetchall() or []
+
+        cp_by_category: Dict[str, List[Dict[str, Any]]] = {}
+        for row in all_cp_rows:
+            cat = (row.get("checkpoint_category") or "").strip()
+            if not cat:
+                continue
+            cp_by_category.setdefault(cat, []).append(row)
+
+        # Sort inside each category: FAIL first (then ERROR, then PASS), then Severity, then id
+        res_pri = {"fail": 1, "error": 2, "pass": 3}
+        sev_pri = {"critical": 1, "major": 2, "minor": 3, "caution": 4}
+
+        def _key(x: Dict[str, Any]):
+            tr = (x.get("test_result") or "").lower()
+            sv = (x.get("checkpoint_severity") or "").lower()
+            return (
+                res_pri.get(tr, 9),
+                sev_pri.get(sv, 9),
+                int(x.get("run_checkpoint_id") or 0),
+            )
+
+        for cat, items in cp_by_category.items():
+            items.sort(key=_key)
+
+        categories_order = ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]
+
+        # Tüm category'ler metrics'te görünsün (0 olsa bile)
+        report_categories = categories_order
+
+        severities = ["critical", "major", "minor", "caution"]
+
     finally:
         try:
             db.close()
         except Exception:
             pass
 
-    # Build matrix: category -> severity -> counts
-    cat_matrix: Dict[str, Dict[str, Dict[str, Any]]] = {}
-    for cr in cat_rows or []:
-        c = cr.get("category")
-        s = cr.get("severity")
-        if not c or not s:
-            continue
-        cat_matrix.setdefault(str(c), {})[str(s)] = cr
-
-    # Risk map for each category from assessment_run_metrics (dimension_type='category')
-    cat_risk_map: Dict[str, Dict[str, Any]] = {}
-    for r in rows or []:
-        if (r.get("dimension_type") or "") == "category":
-            dv = r.get("dimension_value")
-            if dv:
-                cat_risk_map[str(dv)] = r
-
-    categories = ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]
-    severities = ["critical", "major", "minor", "caution"]
-
-    return render_template(
-        "assessment_runs/metrics_list.html",
-        run=run,
-        rows=rows,
-        tab=tab,
-        categories=categories,
-        severities=severities,
-        cat_matrix=cat_matrix,
+    html_str = render_template(
+        "assessment_runs/report_assessment_run_detail.html",
+        r=r,
+        report_categories=report_categories,
+        cp_by_category=cp_by_category,
         cat_risk_map=cat_risk_map,
+        cat_matrix=cat_matrix,
+        severities=severities,
+        css_href="",  # PDF uses CSS file directly
     )
+
+    css_file = "/home/anil/dbvulscan/static/reports/assessment_run_detail.css"
+
+    pdf_bytes = HTML(string=html_str, base_url="file:///home/anil/dbvulscan/").write_pdf(
+        stylesheets=[CSS(filename=css_file)]
+    )
+
+    resp = make_response(pdf_bytes)
+    resp.headers["Content-Type"] = "application/pdf"
+    resp.headers["Content-Disposition"] = f'inline; filename="assessment_run_detail_run_{run_id}.pdf"'
+    return resp
+
+
+@assessment_runs_bp.route("/<int:run_id>/report_detail.pdf", methods=["GET"])
+def report_assessment_run_detail_pdf(run_id: int):
+    return redirect(url_for("assessment_runs.report_assessment_run_detail", run_id=run_id))
+
+
