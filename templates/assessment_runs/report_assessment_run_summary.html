@@ -32,6 +32,20 @@
         </div>
 
         <div class="kv-row"><div class="kv-key">Assessment Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.assessment_name }}</div></div>
+
+        <div class="kv-row">
+          <div class="kv-key">Asset Impact</div><div class="kv-sep">:</div>
+          <div class="kv-val">
+            {% set ai = (r.asset_impact or '')|lower %}
+            {% if ai == 'very_low' %}<span class="impact impact-very-low">Very Low</span>
+            {% elif ai == 'low' %}<span class="impact impact-low">Low</span>
+            {% elif ai == 'medium' %}<span class="impact impact-medium">Medium</span>
+            {% elif ai == 'high' %}<span class="impact impact-high">High</span>
+            {% elif ai == 'critical' %}<span class="impact impact-critical">Critical</span>
+            {% else %}{{ (r.asset_impact or '')|replace('_',' ')|title }}{% endif %}
+          </div>
+        </div>
+
         <div class="kv-row"><div class="kv-key">Db Type</div><div class="kv-sep">:</div><div class="kv-val">{{ r.db_type }}</div></div>
         <div class="kv-row"><div class="kv-key">Datasource Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.datasource_name }}</div></div>
         <div class="kv-row"><div class="kv-key">Benchmark Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.benchmark_name }}</div></div>
@@ -125,16 +139,9 @@
     <div class="section">
       <div class="section-title">Checkpoint Test Results</div>
 
-      {#
-        Grouped by Category.
-        - Categories with no checkpoints are skipped.
-        - Inside each category: FAIL first (then ERROR, then PASS).
-      #}
-
       {% for cat in report_categories %}
         {% set cm = cat_metrics.get(cat) %}
 
-        {# NEW: category değiştiğinde boşluk (ilk category hariç) #}
         {% if not loop.first %}
           <div class="cat-gap"></div>
         {% endif %}

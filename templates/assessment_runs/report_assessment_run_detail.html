@@ -40,6 +40,18 @@
         <div class="kv-row"><div class="kv-key">Database Type</div><div class="kv-sep">:</div><div class="kv-val">{{ r.db_type }}</div></div>
         <div class="kv-row"><div class="kv-key">Datasource Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.datasource_name }}</div></div>
         <div class="kv-row"><div class="kv-key">Benchmark Name</div><div class="kv-sep">:</div><div class="kv-val">{{ r.benchmark_name }}</div></div>
+
+        <div class="kv-row">
+          <div class="kv-key">Asset Impact</div><div class="kv-sep">:</div>
+          <div class="kv-val">
+            {% set ai = r.asset_impact %}
+            {% if ai %}
+              <span class="impact impact-{{ ai }}">{{ ai }}</span>
+            {% else %}
+              <span class="impact impact-na">-</span>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -272,7 +284,19 @@
                 <tbody>
                   <tr>
                     <td class="col-id">{{ loop.index }}</td>
-                    <td class="col-name checkpoint-name">{{ c.checkpoint_name }}</td>
+                    <td class="col-name checkpoint-name">
+                      <div class="cp-name-line">{{ c.checkpoint_name }}</div>
+                      {% set cdesc = (c.checkpoint_description or '') %}
+                      {% if cdesc %}
+                        <table class="tbl tbl-cp-desc">
+                          <tbody>
+                            <tr>
+                              <td class="cp-desc-td">{{ cdesc }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      {% endif %}
+                    </td>
 
                     <td class="col-sev">
                       {% if sev == 'critical' %}<span class="sev sev-critical">Critical</span>

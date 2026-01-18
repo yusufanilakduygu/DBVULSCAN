@@ -101,6 +101,16 @@ html, body{
 
 .res-fail{ color:#b00000; font-weight:900; }
 
+/* Base badge styles */
+.lvl,
+.sev,
+.impact{
+  display:inline-block;
+  padding:1px 5px;
+  border-radius:2px;
+  font-weight:900;
+}
+
 /* Risk box spacing */
 .risk-box{ padding: 0 6mm; }
 .risk-padding-top{ height: 4mm; }
@@ -117,6 +127,13 @@ html, body{
 .lvl-medium{ color:#8a6d00; background:#fbf4d8; }
 .lvl-high{ color:#a45a00; background:#fbe9d8; }
 .lvl-critical{ color:#8f0000; background:#f6dede; }
+
+/* Asset impact badges */
+.impact-very-low{ color:#2f6b2f; background:#edf5ed; }
+.impact-low{ color:#2f6b2f; background:#edf5ed; }
+.impact-medium{ color:#8a6d00; background:#fbf4d8; }
+.impact-high{ color:#a45a00; background:#fbe9d8; }
+.impact-critical{ color:#8f0000; background:#f6dede; }
 
 /* Severity badges (mat) */
 .sev-critical{ color:#8f0000; background:#f6dede; }
