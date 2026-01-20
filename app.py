@@ -13,6 +13,7 @@ from settings import settings_bp     # settings CRUD blueprint
 from benchmarks import benchmarks_bp
 from assessments import assessments_bp
 from assessment_runs import assessment_runs_bp
+from domains import domains_bp
 
 
 def get_setting_value(key):
@@ -63,6 +64,9 @@ def create_app():
     app.register_blueprint(settings_bp)
     app.register_blueprint(benchmarks_bp, url_prefix="/benchmarks")
     app.register_blueprint(assessments_bp, url_prefix="/assessments")
+
+    # Domains
+    app.register_blueprint(domains_bp, url_prefix="/domains")
 
     # ✅ KRİTİK: Assessment Runs (Assessment Results) blueprint’i register et
     app.register_blueprint(assessment_runs_bp, url_prefix="/assessment-results")

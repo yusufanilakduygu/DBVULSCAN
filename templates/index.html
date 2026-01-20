@@ -59,6 +59,13 @@
     display:block;
     margin:0 auto 6px;
   }
+
+  /* ONLY Domains icon bigger */
+  .icon-item img.icon-domains{
+    width: 64x;
+    height: 64px;
+  }
+
   .icon-item a{
     font-size:14px;
     font-weight:700;
@@ -80,7 +87,7 @@
     <h1>Database Vulnerability Scans</h1>
     <h2>DBVulScans</h2>
     <div class="home-version">
-            {{ version_line }}
+      {{ version_line }}
     </div>
   </div>
 
@@ -107,9 +114,9 @@
       </a>
     </div>
     <div class="icon-item">
-      <a href="/assessment-analysis">
-        <img src="/static/img/icon_assessment_analysis_large.png" alt="Assessment Analysis">
-        Assessment Analysis
+      <a href="/domains">
+        <img src="/static/img/icon_security_domains_large.png" alt="Domains" class="icon-domains">
+        Domains
       </a>
     </div>
   </div>

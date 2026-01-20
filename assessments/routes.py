@@ -51,12 +51,20 @@ def list_assessments():
     if conditions:
         where_clause = "WHERE " + " AND ".join(conditions)
 
+    # Include domain name (assessments are optionally grouped under domains)
     sql = f"""
-        SELECT assessment_id, name, datasource_name,
-               benchmark_name, db_type, asset_impact, status, updated_at
-        FROM assessments
+        SELECT a.assessment_id,
+               a.name,
+               a.datasource_name,
+               a.benchmark_name,
+               a.db_type,
+               a.asset_impact,
+               a.status,
+               d.name AS domain_name
+        FROM assessments a
+        LEFT JOIN domains d ON d.domain_id = a.domain_id
         {where_clause}
-        ORDER BY updated_at DESC
+        ORDER BY a.updated_at DESC
     """
     cur.execute(sql, params)
     assessments = cur.fetchall()
@@ -82,6 +90,7 @@ def new_assessment():
         benchmark_id = request.form["benchmark_id"]
         status = request.form["status"]
         asset_impact = request.form.get("asset_impact", "medium")
+        domain_id = request.form.get("domain_id") or None
         notes = request.form.get("notes")
 
         cur.execute("SELECT ds_name FROM datasources WHERE ds_id=%s", (datasource_id,))
@@ -95,15 +104,17 @@ def new_assessment():
             INSERT INTO assessments
             (name, datasource_id, datasource_name,
              benchmark_id, benchmark_name, db_type,
-             asset_impact, status, notes)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             asset_impact, status, domain_id, notes)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 name,
                 datasource_id, ds["ds_name"],
                 benchmark_id, bm["name"], bm["db_type"],
                 asset_impact,
-                status, notes
+                status,
+                domain_id,
+                notes
             )
         )
         db.commit()
@@ -115,11 +126,15 @@ def new_assessment():
     cur.execute("SELECT benchmark_id, name, db_type FROM benchmarks ORDER BY name")
     benchmarks = cur.fetchall()
 
+    cur.execute("SELECT domain_id, name FROM domains ORDER BY name")
+    domains = cur.fetchall()
+
     return render_template(
         "assessments/form.html",
         assessment=None,
         datasources=datasources,
-        benchmarks=benchmarks
+        benchmarks=benchmarks,
+        domains=domains
     )
 
 
@@ -132,15 +147,16 @@ def edit_assessment(assessment_id):
         name = request.form["name"]
         status = request.form["status"]
         asset_impact = request.form.get("asset_impact", "medium")
+        domain_id = request.form.get("domain_id") or None
         notes = request.form.get("notes")
 
         cur.execute(
             """
             UPDATE assessments
-            SET name=%s, asset_impact=%s, status=%s, notes=%s
+            SET name=%s, asset_impact=%s, status=%s, domain_id=%s, notes=%s
             WHERE assessment_id=%s
             """,
-            (name, asset_impact, status, notes, assessment_id)
+            (name, asset_impact, status, domain_id, notes, assessment_id)
         )
         db.commit()
         return redirect(url_for("assessments.list_assessments"))
@@ -154,11 +170,15 @@ def edit_assessment(assessment_id):
     cur.execute("SELECT benchmark_id, name, db_type FROM benchmarks ORDER BY name")
     benchmarks = cur.fetchall()
 
+    cur.execute("SELECT domain_id, name FROM domains ORDER BY name")
+    domains = cur.fetchall()
+
     return render_template(
         "assessments/form.html",
         assessment=assessment,
         datasources=datasources,
-        benchmarks=benchmarks
+        benchmarks=benchmarks,
+        domains=domains
     )
 
 
@@ -185,4 +205,70 @@ def run_assessment_action(assessment_id: int):
         flash(f"Run failed: {e}", "danger")
 
     # Go back to the list page (keep filters/search in URL if user came from there)
+    return redirect(request.referrer or url_for("assessments.list_assessments"))
+
+
+# =========================================================
+# ---------------------- DELETE ASSESSMENT -----------------
+# =========================================================
+
+@assessments_bp.route("/delete/<int:assessment_id>", methods=["POST"])
+def delete_assessment(assessment_id: int):
+    """Delete assessment and its run history.
+
+    Required delete order:
+      - assessment_run_checkpoints  by run_id
+      - assessment_run_metrics      by run_id
+      - assessment_run_category_metrics by run_id
+      - assessment_runs            by assessment_id
+      - assessments                by assessment_id
+    """
+
+    if "user" not in session:
+        return redirect(url_for("auth.login"))
+
+    db = get_db()
+    cur = db.cursor()
+
+    try:
+        # Collect all run_ids for this assessment
+        cur.execute(
+            "SELECT run_id FROM assessment_runs WHERE assessment_id=%s",
+            (assessment_id,),
+        )
+        rows = cur.fetchall() or []
+        run_ids = [r["run_id"] for r in rows]
+
+        if run_ids:
+            ph = ",".join(["%s"] * len(run_ids))
+
+            cur.execute(
+                f"DELETE FROM assessment_run_checkpoints WHERE run_id IN ({ph})",
+                run_ids,
+            )
+            cur.execute(
+                f"DELETE FROM assessment_run_metrics WHERE run_id IN ({ph})",
+                run_ids,
+            )
+            cur.execute(
+                f"DELETE FROM assessment_run_category_metrics WHERE run_id IN ({ph})",
+                run_ids,
+            )
+
+        # Delete runs, then the assessment
+        cur.execute(
+            "DELETE FROM assessment_runs WHERE assessment_id=%s",
+            (assessment_id,),
+        )
+        cur.execute(
+            "DELETE FROM assessments WHERE assessment_id=%s",
+            (assessment_id,),
+        )
+
+        db.commit()
+        flash("Assessment deleted.", "success")
+    except Exception as e:
+        db.rollback()
+        flash(f"Delete failed: {e}", "danger")
+
     return redirect(request.referrer or url_for("assessments.list_assessments"))

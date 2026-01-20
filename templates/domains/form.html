@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% block title %}
+  {% if domain %}Edit Domain{% else %}New Domain{% endif %} · DB Vulnerability Scan
+{% endblock %}
+{% block content %}
+<style>
+.form-wrap{background:#fff;padding:20px;border:1px solid #e6e6e6;border-radius:12px;max-width:900px;margin:auto;}
+.form-title{font-size:18px;font-weight:800;margin-bottom:14px;color:#111827;}
+.form-wrap label{font-size:14px;font-weight:600;display:block;margin-bottom:4px;}
+.form-wrap input[type="text"], .form-wrap select, .form-wrap textarea{width:100%;padding:8px 10px;border:1px solid #d9d9d9;border-radius:8px;}
+.form-actions{display:flex;gap:10px;margin-top:16px;}
+.btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8;padding:8px 14px;border-radius:8px;text-decoration:none;}
+.btn-secondary{background:#fff;color:#2563eb;border:1px solid #2563eb;padding:8px 14px;border-radius:8px;text-decoration:none;}
+</style>
+
+<div class="form-wrap">
+  <div class="form-title">
+    {% if domain %}Edit Domain{% else %}New Domain{% endif %}
+  </div>
+
+  <form method="post">
+    <label>Domain Name</label>
+    <input type="text" name="name" required value="{{ domain.name if domain else '' }}">
+
+    <label>Description</label>
+    <textarea name="description" rows="4">{{ domain.description if domain else '' }}</textarea>
+
+    <label>Status</label>
+    <select name="is_active">
+      <option value="1" {% if domain and domain.is_active==1 %}selected{% elif not domain %}selected{% endif %}>active</option>
+      <option value="0" {% if domain and domain.is_active==0 %}selected{% endif %}>inactive</option>
+    </select>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save</button>
+      <a href="{{ url_for('domains.list_domains') }}" class="btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

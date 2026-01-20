@@ -10,6 +10,21 @@
 .btn-primary:hover{background:#1d4ed8;}
 .btn-secondary{background:#fff;color:#2563eb;border:1px solid #2563eb;}
 .btn-secondary:hover{background:#f8fafc;}
+.btn-danger{background:#fff;color:#dc2626;border:1px solid #dc2626;}
+.btn-danger:hover{background:#fef2f2;}
+
+/* Icon buttons */
+.btn-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:32px;
+  height:32px;
+  padding:0;
+  border-radius:8px;
+}
+.btn-icon svg{width:14px;height:14px;}
+
 .ds-table{width:100%;border-collapse:collapse;}
 .ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
 .ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;}
@@ -22,17 +37,27 @@
 .filters .btn-link{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;cursor:pointer;text-decoration:none;color:#374151;}
 .filters .btn-link:hover{background:#f8fafc;}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap;}
-.row-actions a{font-size:12px;padding:6px 10px;border-radius:8px;text-decoration:none;white-space:nowrap;}
+.row-actions a{font-size:12px;border-radius:8px;text-decoration:none;white-space:nowrap;}
+/* button'lar da a gibi görünsün */
+.row-actions button{font-size:12px;border-radius:8px;white-space:nowrap;border:1px solid transparent;}
 @media (max-width: 980px){
   .ds-head{flex-direction:column;align-items:flex-start;}
 }
 
-/* Disabled button look (no backend yet) */
+/* Disabled button look */
 .btn-disabled{
   opacity: .55;
   cursor: not-allowed;
-  pointer-events: none; /* prevents click */
+  pointer-events: none;
 }
+
+/* Asset impact badges */
+.badge{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:700;line-height:1;}
+.badge-critical{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;}
+.badge-high{background:#ffedd5;color:#9a3412;border:1px solid #fed7aa;}
+.badge-medium{background:#e0f2fe;color:#075985;border:1px solid #bae6fd;}
+.badge-low{background:#ecfccb;color:#3f6212;border:1px solid #d9f99d;}
+.badge-very-low{background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;}
 </style>
 
 <div class="ds-wrap">
@@ -66,7 +91,6 @@
           <option value="mssql" {% if f_db_type=='mssql' %}selected{% endif %}>mssql</option>
         </select>
 
-
         <select name="asset_impact" onchange="this.form.submit()">
           <option value="">Asset Impact (All)</option>
           <option value="critical" {% if f_asset_impact=='critical' %}selected{% endif %}>critical</option>
@@ -90,12 +114,12 @@
       <thead>
         <tr>
           <th>Assessment Name</th>
+          <th>Domain</th>
           <th>Datasource</th>
           <th>Benchmark</th>
           <th>DB Type</th>
           <th>Asset Impact</th>
           <th>Status</th>
-          <th>Updated</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -107,22 +131,87 @@
               {{ a.name }}
             </a>
           </td>
+          <td>{{ a.domain_name or '' }}</td>
           <td>{{ a.datasource_name }}</td>
           <td>{{ a.benchmark_name }}</td>
           <td>{{ a.db_type }}</td>
-          <td>{{ a.asset_impact }}</td>
+          <td>
+            {% set ai = (a.asset_impact or '') %}
+            {% if ai == 'critical' %}
+              <span class="badge badge-critical">critical</span>
+            {% elif ai == 'high' %}
+              <span class="badge badge-high">high</span>
+            {% elif ai == 'medium' %}
+              <span class="badge badge-medium">medium</span>
+            {% elif ai == 'low' %}
+              <span class="badge badge-low">low</span>
+            {% elif ai == 'very_low' %}
+              <span class="badge badge-very-low">very_low</span>
+            {% else %}
+              {{ a.asset_impact }}
+            {% endif %}
+          </td>
           <td>{{ a.status }}</td>
-          <td>{{ a.updated_at }}</td>
           <td>
             <div class="row-actions">
+
+              <!-- Run Assessment: play icon only -->
               <form method="post" action="{{ url_for('assessments.run_assessment_action', assessment_id=a.assessment_id) }}" style="display:inline;">
-                <button type="submit" class="btn-secondary" style="cursor:pointer;">Run Assessment</button>
+                <button type="submit" class="btn-secondary btn-icon" style="cursor:pointer;" title="Run Assessment" aria-label="Run Assessment">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8 5v14l11-7z"></path>
+                  </svg>
+                </button>
               </form>
 
-              <!-- Placeholder: feature will be implemented later -->
-              <a class="btn-secondary btn-disabled" href="#" aria-disabled="true" title="Coming soon">
-                Show Assessments
-              </a>
+              <!-- Show Results: icon only (active if last_run_id exists) -->
+              {% if a.last_run_id %}
+                <a class="btn-secondary btn-icon"
+                   href="/assessment-results/{{ a.last_run_id }}"
+                   title="Show Results"
+                   aria-label="Show Results">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M9 6h11"></path>
+                    <path d="M9 12h11"></path>
+                    <path d="M9 18h11"></path>
+                    <path d="M4 6h.01"></path>
+                    <path d="M4 12h.01"></path>
+                    <path d="M4 18h.01"></path>
+                  </svg>
+                </a>
+              {% else %}
+                <a class="btn-secondary btn-icon btn-disabled"
+                   href="#"
+                   aria-disabled="true"
+                   title="No results yet"
+                   aria-label="No results yet">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M9 6h11"></path>
+                    <path d="M9 12h11"></path>
+                    <path d="M9 18h11"></path>
+                    <path d="M4 6h.01"></path>
+                    <path d="M4 12h.01"></path>
+                    <path d="M4 18h.01"></path>
+                  </svg>
+                </a>
+              {% endif %}
+
+              <!-- Delete: trash icon only -->
+              <form method="post"
+                    action="{{ url_for('assessments.delete_assessment', assessment_id=a.assessment_id) }}"
+                    style="display:inline;"
+                    onsubmit="return confirm('Delete this assessment and all related runs/metrics?');">
+                <button type="submit" class="btn-danger btn-icon" title="Delete" aria-label="Delete">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                    <path d="M10 11v6"></path>
+                    <path d="M14 11v6"></path>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                  </svg>
+                </button>
+              </form>
+
             </div>
           </td>
         </tr>

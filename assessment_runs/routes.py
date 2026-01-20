@@ -31,7 +31,7 @@ def _get_runs_filters() -> Dict[str, str]:
     keys = [
         "start_date",
         "end_date",
-        "run_id",
+        "assessment_name",
         "db_type",
         "status",
         "risk_level",
@@ -84,10 +84,10 @@ def list_assessment_runs():
         where.append("executed_at <= %s")
         params.append(f["end_date"] + " 23:59:59")
 
-    # run_id (exact)
-    if f["run_id"]:
-        where.append("run_id = %s")
-        params.append(f["run_id"])
+    # assessment_name (exact from dropdown)
+    if f["assessment_name"]:
+        where.append("assessment_name = %s")
+        params.append(f["assessment_name"])
 
     # enums
     if f["db_type"]:
@@ -108,6 +108,10 @@ def list_assessment_runs():
     db = get_db()
     try:
         cur = db.cursor()
+
+        # LOV for assessment_name
+        cur.execute("SELECT DISTINCT assessment_name FROM assessment_runs ORDER BY assessment_name")
+        assessment_names = [row["assessment_name"] for row in cur.fetchall()]
 
         # Count
         cur.execute("SELECT COUNT(*) AS cnt FROM assessment_runs" + where_sql, params)
@@ -139,6 +143,7 @@ def list_assessment_runs():
     return render_template(
         "assessment_runs/list.html",
         rows=rows,
+        assessment_names=assessment_names,
         filters=f,
         page=page,
         page_size=PAGE_SIZE,

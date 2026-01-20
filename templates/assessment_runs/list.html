@@ -21,6 +21,15 @@
 .pager .nums{display:flex;gap:6px;flex-wrap:wrap;}
 .pager .active{background:#2563eb;color:#fff;border-color:#1d4ed8;}
 .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #e5e9f2;background:#f8fafc;}
+.badge-status-success{background:#dcfce7;border-color:#86efac;color:#166534;}
+.badge-status-error{background:#fee2e2;border-color:#fecaca;color:#991b1b;}
+.badge-status-unreachable{background:#f1f5f9;border-color:#cbd5e1;color:#0f172a;}
+.badge-status-incomplete{background:#ffedd5;border-color:#fdba74;color:#9a3412;}
+
+.badge-risk-low{background:#dcfce7;border-color:#86efac;color:#166534;}
+.badge-risk-medium{background:#ffedd5;border-color:#fdba74;color:#9a3412;}
+.badge-risk-high{background:#ffe4e6;border-color:#fecdd3;color:#9f1239;}
+.badge-risk-critical{background:#fee2e2;border-color:#fecaca;color:#991b1b;}
 .link{color:#2563eb;text-decoration:none;font-weight:700;}
 .link:hover{text-decoration:underline;}
 .row-actions{display:flex;gap:8px;justify-content:flex-end;}
@@ -45,7 +54,12 @@
       <input type="date" name="start_date" value="{{ filters.start_date or '' }}" title="Start of executed_at" onchange="this.form.submit()">
       <input type="date" name="end_date" value="{{ filters.end_date or '' }}" title="End of executed_at" onchange="this.form.submit()">
 
-      <input type="text" name="run_id" placeholder="run_id" value="{{ filters.run_id or '' }}" style="width:140px;">
+      <select name="assessment_name" onchange="this.form.submit()" style="min-width:260px;">
+        <option value="">Assessment (All)</option>
+        {% for n in assessment_names %}
+          <option value="{{ n }}" {% if filters.assessment_name==n %}selected{% endif %}>{{ n }}</option>
+        {% endfor %}
+      </select>
 
       <select name="db_type" onchange="this.form.submit()">
         <option value="">DB Type (All)</option>
@@ -55,9 +69,10 @@
 
       <select name="status" onchange="this.form.submit()">
         <option value="">Status (All)</option>
-        <option value="started" {% if filters.status=='started' %}selected{% endif %}>started</option>
+        <option value="incomplete" {% if filters.status=='incomplete' %}selected{% endif %}>incomplete</option>
         <option value="success" {% if filters.status=='success' %}selected{% endif %}>success</option>
         <option value="error" {% if filters.status=='error' %}selected{% endif %}>error</option>
+        <option value="unreachable" {% if filters.status=='unreachable' %}selected{% endif %}>unreachable</option>
       </select>
 
       <select name="risk_level" onchange="this.form.submit()">
@@ -110,16 +125,18 @@
           </a>
         </td>
         <td><span class="badge">{{ r.db_type }}</span></td>
-        <td><span class="badge">{{ r.status }}</span></td>
+        <td><span class="badge badge-status-{{ (r.status or '')|lower }}">{{ r.status }}</span></td>
         <td>{{ r.total_count }}</td>
         <td>{{ r.success_count }}</td>
         <td>{{ r.fail_count }}</td>
         <td>{{ r.error_count }}</td>
         <td>{{ r.success_pct }}</td>
         <td>{{ r.risk }}</td>
-        <td><span class="badge">{{ r.risk_level }}</span></td>
+        {% set rl = (r.risk_level or '')|lower %}
+        <td><span class="badge {% if rl %}badge-risk-{{ rl }}{% endif %}">{{ r.risk_level }}</span></td>
         <td>{{ r.asset_adjusted_risk }}</td>
-        <td><span class="badge">{{ r.asset_adjusted_risk_level }}</span></td>
+        {% set arl = (r.asset_adjusted_risk_level or '')|lower %}
+        <td><span class="badge {% if arl %}badge-risk-{{ arl }}{% endif %}">{{ r.asset_adjusted_risk_level }}</span></td>
         <td>{{ r.executed_at }}</td>
         <!-- <td style="text-align:right;">
           <div class="row-actions">
@@ -141,14 +158,14 @@
       {% if page > 1 %}
         <a href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=page-1,
-                            start_date=filters.start_date, end_date=filters.end_date, run_id=filters.run_id,
+                            start_date=filters.start_date, end_date=filters.end_date, assessment_name=filters.assessment_name,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">Prev</a>
       {% endif %}
       {% if page < total_pages %}
         <a href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=page+1,
-                            start_date=filters.start_date, end_date=filters.end_date, run_id=filters.run_id,
+                            start_date=filters.start_date, end_date=filters.end_date, assessment_name=filters.assessment_name,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">Next</a>
       {% endif %}
@@ -161,7 +178,7 @@
         <a class="{% if p==page %}active{% endif %}"
            href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=p,
-                            start_date=filters.start_date, end_date=filters.end_date, run_id=filters.run_id,
+                            start_date=filters.start_date, end_date=filters.end_date, assessment_name=filters.assessment_name,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">{{ p }}</a>
       {% endfor %}
