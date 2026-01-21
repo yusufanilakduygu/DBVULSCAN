@@ -26,11 +26,102 @@
 .filters .btn-link{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;cursor:pointer;text-decoration:none;color:#374151;}
 .filters .btn-link:hover{background:#f8fafc;}
 
+/* Reset icon button */
+.icon-btn-neutral{
+  width:38px;height:38px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px;
+  background:#fff;border:1px solid #e5e9f2;
+  text-decoration:none;
+  position:relative;
+}
+.icon-btn-neutral:hover{background:#f8fafc;}
+.icon-btn-neutral svg{display:block}
+
+/* NEW RECORD (+) icon only */
+.icon-btn-blue{
+  width:38px;height:38px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px;
+  background:#2563eb;border:1px solid #1d4ed8;
+  text-decoration:none;
+  position:relative;
+}
+.icon-btn-blue:hover{background:#1d4ed8;}
+.icon-btn-blue svg{display:block}
+
+/* Tooltip (generic) */
+.tooltip{
+  position:absolute;
+  top:calc(100% + 8px);
+  right:0;
+  background:#0f172a;
+  color:#fff;
+  font-size:12px;
+  padding:6px 8px;
+  border-radius:8px;
+  white-space:nowrap;
+  opacity:0;
+  transform:translateY(-4px);
+  pointer-events:none;
+  transition:all .12s ease;
+  box-shadow:0 8px 20px rgba(15,23,42,.22);
+  z-index:50;
+}
+.icon-btn-neutral:hover .tooltip,
+.icon-btn-blue:hover .tooltip{opacity:1;transform:translateY(0);}
+
+/* Actions */
 .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-.actions a, .actions button{display:inline-block;padding:6px 10px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #e5e9f2;background:#fff;text-decoration:none;color:#111827;}
+.actions a, .actions button{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:6px 8px;border-radius:8px;font-size:13px;cursor:pointer;
+  border:1px solid #e5e9f2;background:#fff;text-decoration:none;color:#111827;
+  position:relative;
+}
 .actions a:hover, .actions button:hover{background:#f8fafc;}
-.actions .danger{border-color:#fecaca;color:#7f1d1d;background:#fff;}
+
+/* Icon-only Add checkpoints */
+.actions .btn-addcp{
+  border-color:#2563eb;
+  color:#2563eb;
+  font-weight:800;
+  position:relative;
+}
+.actions .btn-addcp:hover{
+  background:#eff6ff;
+  border-color:#1d4ed8;
+  color:#1d4ed8;
+}
+.actions .btn-addcp svg{display:block}
+
+/* Delete icon button */
+.actions .danger{
+  border-color:#fecaca;color:#7f1d1d;background:#fff;
+}
 .actions .danger:hover{background:#fff1f2;}
+.actions .danger svg{display:block}
+
+/* Tooltip for action links/buttons (right side) */
+.actions .btn-tip{
+  position:absolute;
+  left:calc(100% + 10px);
+  top:50%;
+  transform:translateY(-50%);
+  background:#0f172a;
+  color:#fff;
+  font-size:12px;
+  padding:6px 8px;
+  border-radius:8px;
+  white-space:nowrap;
+  opacity:0;
+  pointer-events:none;
+  transition:all .12s ease;
+  box-shadow:0 8px 20px rgba(15,23,42,.22);
+  z-index:50;
+}
+.actions a:hover .btn-tip,
+.actions button:hover .btn-tip{opacity:1;}
 
 @media (max-width: 980px){
   .ds-head{flex-direction:column;align-items:flex-start;}
@@ -76,12 +167,27 @@
           <option value="DRAFT" {% if f_status=='DRAFT' %}selected{% endif %}>DRAFT</option>
         </select>
 
-        <a class="btn-link" href="{{ url_for('benchmarks.list_benchmarks', reset=1) }}">Reset</a>
+        <!-- Reset icon -->
+        <a class="icon-btn-neutral"
+           href="{{ url_for('benchmarks.list_benchmarks', reset=1) }}"
+           aria-label="Reset">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 12a8 8 0 1 1-2.35-5.65" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"/>
+            <path d="M20 4v6h-6" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="tooltip">Reset</span>
+        </a>
       </form>
     </div>
 
     <div class="ds-actions">
-      <a href="{{ url_for('benchmarks.new_benchmark') }}" class="btn btn-primary">New Benchmark</a>
+      <!-- New record (icon only + tooltip) -->
+      <a href="{{ url_for('benchmarks.new_benchmark') }}" class="icon-btn-blue" aria-label="New Record">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
+        </svg>
+        <span class="tooltip">New Record</span>
+      </a>
     </div>
   </div>
 
@@ -112,9 +218,28 @@
           <td><span class="badge">{{ b.status }}</span></td>
           <td><span class="badge">{{ b.updated_at }}</span></td>
           <td class="actions">
-            <a href="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=b.benchmark_id) }}">Add Checkpoints</a>
+            <!-- Add Checkpoints (icon only + hover text) -->
+            <a class="btn-addcp" href="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=b.benchmark_id) }}" aria-label="Add Checkpoints">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 6h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M9 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M9 18h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M4 6l1.2 1.2L7.6 4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 12l1.2 1.2L7.6 10.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="btn-tip">Add Checkpoints</span>
+            </a>
+
+            <!-- Delete (icon only + hover text) -->
             <form action="{{ url_for('benchmarks.delete_benchmark', benchmark_id=b.benchmark_id) }}" method="post" style="display:inline" onsubmit="return confirm('Delete {{ b.name }}?');">
-              <button class="danger" type="submit">Delete</button>
+              <button class="danger" type="submit" aria-label="Delete">
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 3h6l1 2h5v2H3V5h5l1-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M6 9h12l-1 12H7L6 9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M10 13v6M14 13v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span class="btn-tip">Delete</span>
+              </button>
             </form>
           </td>
         </tr>

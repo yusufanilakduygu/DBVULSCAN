@@ -54,10 +54,10 @@
       <input type="date" name="start_date" value="{{ filters.start_date or '' }}" title="Start of executed_at" onchange="this.form.submit()">
       <input type="date" name="end_date" value="{{ filters.end_date or '' }}" title="End of executed_at" onchange="this.form.submit()">
 
-      <select name="assessment_name" onchange="this.form.submit()" style="min-width:260px;">
+      <select name="assessment_id" onchange="this.form.submit()" style="min-width:260px;">
         <option value="">Assessment (All)</option>
-        {% for n in assessment_names %}
-          <option value="{{ n }}" {% if filters.assessment_name==n %}selected{% endif %}>{{ n }}</option>
+        {% for a in assessments_lov %}
+          <option value="{{ a.assessment_id }}" {% if (filters.assessment_id|int if filters.assessment_id else 0) == a.assessment_id %}selected{% endif %}>{{ a.name }}</option>
         {% endfor %}
       </select>
 
@@ -112,7 +112,6 @@
         <th>asset<br>adjusted<br>risk</th>
         <th>asset adj<br>risk_level</th>
         <th>executed_at</th>
-        <!-- <th style="text-align:right;">actions</th> -->
       </tr>
     </thead>
     <tbody>
@@ -120,9 +119,7 @@
       <tr>
         <td>{{ r.run_id }}</td>
         <td>
-          <a class="link" href="{{ url_for('assessment_runs.run_detail', run_id=r.run_id) }}">
-            {{ r.assessment_name }}
-          </a>
+        <a class="link" href="{{ url_for('assessment_runs.run_detail', run_id=r.run_id) }}">{{ r.assessment_name }}</a>
         </td>
         <td><span class="badge">{{ r.db_type }}</span></td>
         <td><span class="badge badge-status-{{ (r.status or '')|lower }}">{{ r.status }}</span></td>
@@ -138,12 +135,6 @@
         {% set arl = (r.asset_adjusted_risk_level or '')|lower %}
         <td><span class="badge {% if arl %}badge-risk-{{ arl }}{% endif %}">{{ r.asset_adjusted_risk_level }}</span></td>
         <td>{{ r.executed_at }}</td>
-        <!-- <td style="text-align:right;">
-          <div class="row-actions">
-            <a class="btn-small btn-outline" href="{{ url_for('assessment_runs.checkpoints_list', run_id=r.run_id) }}">Checkpoints</a>
-            <a class="btn-small btn-outline" href="{{ url_for('assessment_runs.metrics_list', run_id=r.run_id) }}">Metrics</a>
-          </div>
-        </td> -->
       </tr>
       {% else %}
       <tr>
@@ -158,14 +149,14 @@
       {% if page > 1 %}
         <a href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=page-1,
-                            start_date=filters.start_date, end_date=filters.end_date, assessment_name=filters.assessment_name,
+                            start_date=filters.start_date, end_date=filters.end_date, assessment_id=filters.assessment_id,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">Prev</a>
       {% endif %}
       {% if page < total_pages %}
         <a href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=page+1,
-                            start_date=filters.start_date, end_date=filters.end_date, assessment_name=filters.assessment_name,
+                            start_date=filters.start_date, end_date=filters.end_date, assessment_id=filters.assessment_id,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">Next</a>
       {% endif %}
@@ -178,7 +169,7 @@
         <a class="{% if p==page %}active{% endif %}"
            href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=p,
-                            start_date=filters.start_date, end_date=filters.end_date, assessment_name=filters.assessment_name,
+                            start_date=filters.start_date, end_date=filters.end_date, assessment_id=filters.assessment_id,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">{{ p }}</a>
       {% endfor %}

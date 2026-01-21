@@ -14,12 +14,22 @@ PAGE_SIZE = 10
 
 
 def _normalize_date(s: str) -> str:
-    # Expect YYYY-MM-DD; return '' if invalid
     if not s:
         return ""
     try:
         datetime.strptime(s, "%Y-%m-%d")
         return s
+    except Exception:
+        return ""
+
+
+def _normalize_int(s: str) -> str:
+    """Return string form of positive int, else ''."""
+    if not s:
+        return ""
+    try:
+        v = int(str(s).strip())
+        return str(v) if v > 0 else ""
     except Exception:
         return ""
 
@@ -31,7 +41,7 @@ def _get_runs_filters() -> Dict[str, str]:
     keys = [
         "start_date",
         "end_date",
-        "assessment_name",
+        "assessment_id",
         "db_type",
         "status",
         "risk_level",
@@ -47,6 +57,8 @@ def _get_runs_filters() -> Dict[str, str]:
             val = (request.args.get(k, "") or "").strip()
             if k in ("start_date", "end_date"):
                 val = _normalize_date(val)
+            if k == "assessment_id":
+                val = _normalize_int(val)
             out[k] = val
             touched = True
 
@@ -84,10 +96,10 @@ def list_assessment_runs():
         where.append("executed_at <= %s")
         params.append(f["end_date"] + " 23:59:59")
 
-    # assessment_name (exact from dropdown)
-    if f["assessment_name"]:
-        where.append("assessment_name = %s")
-        params.append(f["assessment_name"])
+    # assessment_id (exact from dropdown)
+    if f["assessment_id"]:
+        where.append("assessment_id = %s")
+        params.append(int(f["assessment_id"]))
 
     # enums
     if f["db_type"]:
@@ -109,9 +121,9 @@ def list_assessment_runs():
     try:
         cur = db.cursor()
 
-        # LOV for assessment_name
-        cur.execute("SELECT DISTINCT assessment_name FROM assessment_runs ORDER BY assessment_name")
-        assessment_names = [row["assessment_name"] for row in cur.fetchall()]
+        # LOV for assessments (id + name)
+        cur.execute("SELECT assessment_id, name FROM assessments ORDER BY name")
+        assessments_lov = cur.fetchall()
 
         # Count
         cur.execute("SELECT COUNT(*) AS cnt FROM assessment_runs" + where_sql, params)
@@ -123,9 +135,8 @@ def list_assessment_runs():
 
         offset = (page - 1) * PAGE_SIZE
 
-        # Data (error_count dahil)
         sql = (
-            "SELECT run_id, assessment_name, db_type, status, total_count, success_count, fail_count, error_count, "
+            "SELECT run_id, assessment_id, assessment_name, db_type, status, total_count, success_count, fail_count, error_count, "
             "success_pct, risk, risk_level, asset_adjusted_risk, asset_adjusted_risk_level, executed_at "
             "FROM assessment_runs"
             + where_sql
@@ -143,7 +154,7 @@ def list_assessment_runs():
     return render_template(
         "assessment_runs/list.html",
         rows=rows,
-        assessment_names=assessment_names,
+        assessments_lov=assessments_lov,
         filters=f,
         page=page,
         page_size=PAGE_SIZE,
@@ -152,9 +163,6 @@ def list_assessment_runs():
     )
 
 
-# -----------------------------
-# RUN DETAIL (read-only form)
-# -----------------------------
 @assessment_runs_bp.route("/<int:run_id>", methods=["GET"])
 def run_detail(run_id: int):
     db = get_db()

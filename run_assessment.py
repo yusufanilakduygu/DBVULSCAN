@@ -715,6 +715,18 @@ def run_assessment(assessment_id: int) -> Tuple[int, int]:
                 ),
             )
 
+    # -------------------------
+    # NEW: assessments.last_run_id = run_id (ONLY normal end)
+    # -------------------------
+    cur.execute(
+        """
+        UPDATE assessments
+           SET last_run_id=%s
+         WHERE assessment_id=%s
+        """,
+        (run_id, assessment_id),
+    )
+
     db.commit()
     db.close()
 

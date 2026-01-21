@@ -48,7 +48,7 @@
 .btn-disabled{
   opacity: .55;
   cursor: not-allowed;
-  pointer-events: none;
+  /* pointer-events: none;  <-- KALDIRILDI (tooltip görünsün) */
 }
 
 /* Asset impact badges */
@@ -167,9 +167,9 @@
               <!-- Show Results: icon only (active if last_run_id exists) -->
               {% if a.last_run_id %}
                 <a class="btn-secondary btn-icon"
-                   href="/assessment-results/{{ a.last_run_id }}"
-                   title="Show Results"
-                   aria-label="Show Results">
+                   href="{{ url_for('assessment_runs.list_assessment_runs', assessment_id=a.assessment_id) }}"
+                   title="Show Assessments"
+                   aria-label="Show Assessments">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M9 6h11"></path>
                     <path d="M9 12h11"></path>
@@ -182,9 +182,10 @@
               {% else %}
                 <a class="btn-secondary btn-icon btn-disabled"
                    href="#"
+                   onclick="return false;"
                    aria-disabled="true"
-                   title="No results yet"
-                   aria-label="No results yet">
+                   title="Show Assessments (no results yet)"
+                   aria-label="Show Assessments (no results yet)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M9 6h11"></path>
                     <path d="M9 12h11"></path>

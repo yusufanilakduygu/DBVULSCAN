@@ -52,6 +52,7 @@ def list_assessments():
         where_clause = "WHERE " + " AND ".join(conditions)
 
     # Include domain name (assessments are optionally grouped under domains)
+    # IMPORTANT: last_run_id is needed for Show Results button state
     sql = f"""
         SELECT a.assessment_id,
                a.name,
@@ -60,6 +61,7 @@ def list_assessments():
                a.db_type,
                a.asset_impact,
                a.status,
+               a.last_run_id,
                d.name AS domain_name
         FROM assessments a
         LEFT JOIN domains d ON d.domain_id = a.domain_id
@@ -182,19 +184,8 @@ def edit_assessment(assessment_id):
     )
 
 
-# =========================================================
-# ---------------------- RUN ASSESSMENT --------------------
-# =========================================================
-
 @assessments_bp.route("/run/<int:assessment_id>", methods=["POST"])
 def run_assessment_action(assessment_id: int):
-    """Run button handler (no extra pages).
-
-    - Trigger run_assessment(assessment_id)
-    - Stay on the same page (redirect back)
-    - Show a flash message with the new run_id
-    """
-
     if "user" not in session:
         return redirect(url_for("auth.login"))
 
@@ -204,13 +195,8 @@ def run_assessment_action(assessment_id: int):
     except Exception as e:
         flash(f"Run failed: {e}", "danger")
 
-    # Go back to the list page (keep filters/search in URL if user came from there)
     return redirect(request.referrer or url_for("assessments.list_assessments"))
 
-
-# =========================================================
-# ---------------------- DELETE ASSESSMENT -----------------
-# =========================================================
 
 @assessments_bp.route("/delete/<int:assessment_id>", methods=["POST"])
 def delete_assessment(assessment_id: int):
@@ -219,56 +205,32 @@ def delete_assessment(assessment_id: int):
     Required delete order:
       - assessment_run_checkpoints  by run_id
       - assessment_run_metrics      by run_id
-      - assessment_run_category_metrics by run_id
-      - assessment_runs            by assessment_id
-      - assessments                by assessment_id
+      - assessment_runs             by assessment_id
+      - assessments                 by assessment_id
     """
-
-    if "user" not in session:
-        return redirect(url_for("auth.login"))
-
     db = get_db()
     cur = db.cursor()
 
-    try:
-        # Collect all run_ids for this assessment
+    # Get runs for this assessment
+    cur.execute("SELECT run_id FROM assessment_runs WHERE assessment_id=%s", (assessment_id,))
+    run_ids = [r["run_id"] for r in cur.fetchall()]
+
+    # Delete child tables by run_id (if exist)
+    if run_ids:
         cur.execute(
-            "SELECT run_id FROM assessment_runs WHERE assessment_id=%s",
-            (assessment_id,),
-        )
-        rows = cur.fetchall() or []
-        run_ids = [r["run_id"] for r in rows]
-
-        if run_ids:
-            ph = ",".join(["%s"] * len(run_ids))
-
-            cur.execute(
-                f"DELETE FROM assessment_run_checkpoints WHERE run_id IN ({ph})",
-                run_ids,
-            )
-            cur.execute(
-                f"DELETE FROM assessment_run_metrics WHERE run_id IN ({ph})",
-                run_ids,
-            )
-            cur.execute(
-                f"DELETE FROM assessment_run_category_metrics WHERE run_id IN ({ph})",
-                run_ids,
-            )
-
-        # Delete runs, then the assessment
-        cur.execute(
-            "DELETE FROM assessment_runs WHERE assessment_id=%s",
-            (assessment_id,),
+            "DELETE FROM assessment_run_checkpoints WHERE run_id IN (%s)" % ",".join(["%s"] * len(run_ids)),
+            run_ids
         )
         cur.execute(
-            "DELETE FROM assessments WHERE assessment_id=%s",
-            (assessment_id,),
+            "DELETE FROM assessment_run_metrics WHERE run_id IN (%s)" % ",".join(["%s"] * len(run_ids)),
+            run_ids
         )
 
-        db.commit()
-        flash("Assessment deleted.", "success")
-    except Exception as e:
-        db.rollback()
-        flash(f"Delete failed: {e}", "danger")
+    # Delete runs
+    cur.execute("DELETE FROM assessment_runs WHERE assessment_id=%s", (assessment_id,))
 
-    return redirect(request.referrer or url_for("assessments.list_assessments"))
+    # Delete assessment
+    cur.execute("DELETE FROM assessments WHERE assessment_id=%s", (assessment_id,))
+
+    db.commit()
+    return redirect(url_for("assessments.list_assessments"))

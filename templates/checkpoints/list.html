@@ -12,10 +12,12 @@
 .ds-table{width:100%;border-collapse:collapse;}
 .ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
 .ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;}
-.actions button{display:inline-block;padding:6px 10px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #e5e9f2;background:#fff;}
+
+.actions button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #e5e9f2;background:#fff;position:relative;}
 .actions button:hover{background:#f8fafc;}
 .actions .danger{border-color:#fecaca;color:#7f1d1d;background:#fff;}
 .actions .danger:hover{background:#fff1f2;}
+
 .search-box{display:flex;align-items:center;gap:6px;}
 .search-box input{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;width:220px;}
 .cp-link{color:#2563eb;font-weight:600;text-decoration:none;cursor:pointer;}
@@ -38,6 +40,88 @@
   text-decoration:none;color:#374151;
 }
 .filters .btn-link:hover{background:#f8fafc;}
+
+/* NEW RECORD (+) BUTTON */
+.icon-btn{
+  width:38px;height:38px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px;
+  background:#2563eb;border:1px solid #1d4ed8;
+  text-decoration:none;
+  position:relative;
+}
+.icon-btn:hover{background:#1d4ed8;}
+.icon-btn svg{display:block}
+
+/* Reset icon button (neutral) */
+.icon-btn-neutral{
+  width:38px;height:38px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px;
+  background:#fff;border:1px solid #e5e9f2;
+  text-decoration:none;
+  position:relative;
+}
+.icon-btn-neutral:hover{background:#f8fafc;}
+.icon-btn-neutral svg{display:block}
+
+/* Tooltip (generic) */
+.tooltip{
+  position:absolute;
+  top:calc(100% + 8px);
+  right:0;
+  background:#0f172a;
+  color:#fff;
+  font-size:12px;
+  padding:6px 8px;
+  border-radius:8px;
+  white-space:nowrap;
+  opacity:0;
+  transform:translateY(-4px);
+  pointer-events:none;
+  transition:all .12s ease;
+  box-shadow:0 8px 20px rgba(15,23,42,.22);
+  z-index:50;
+}
+.icon-btn:hover .tooltip,
+.icon-btn-neutral:hover .tooltip{
+  opacity:1;
+  transform:translateY(0);
+}
+
+/* Tooltip for action buttons (Delete) - show on right side */
+.actions .btn-tip{
+  position:absolute;
+  left:calc(100% + 10px);
+  top:50%;
+  transform:translateY(-50%);
+  background:#0f172a;
+  color:#fff;
+  font-size:12px;
+  padding:6px 8px;
+  border-radius:8px;
+  white-space:nowrap;
+  opacity:0;
+  pointer-events:none;
+  transition:all .12s ease;
+  box-shadow:0 8px 20px rgba(15,23,42,.22);
+  z-index:50;
+}
+.actions button:hover .btn-tip{
+  opacity:1;
+}
+
+/* Severity colored badges */
+.badge-sev{font-weight:800;border-width:1px;}
+.badge-sev-critical{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
+.badge-sev-major{background:#fff7ed;border-color:#fed7aa;color:#9a3412;}
+.badge-sev-minor{background:#fffbeb;border-color:#fde68a;color:#92400e;}
+.badge-sev-caution{background:#fefce8;border-color:#fde047;color:#854d0e;}
+.badge-sev-info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
+
+/* Trash icon button tighter */
+.icon-danger{padding:6px 8px;}
+.icon-danger svg{display:block}
 
 @media (max-width: 980px){
   .ds-head{flex-direction:column;align-items:flex-start;}
@@ -94,12 +178,28 @@
           <option value="info" {% if f_severity=='info' %}selected{% endif %}>info</option>
         </select>
 
-        <a class="btn-link" href="{{ url_for('checkpoints.list_checkpoints', reset=1) }}">Reset</a>
+        <!-- Reset icon (replaces text Reset) -->
+        <a class="icon-btn-neutral"
+           href="{{ url_for('checkpoints.list_checkpoints', reset=1) }}"
+           aria-label="Reset">
+          <!-- rotate arrow icon -->
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 12a8 8 0 1 1-2.35-5.65" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round"/>
+            <path d="M20 4v6h-6" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="tooltip">Reset</span>
+        </a>
       </form>
     </div>
 
     <div class="ds-actions">
-      <a href="{{ url_for('checkpoints.new_checkpoint') }}" class="btn btn-primary">New Checkpoint</a>
+      <!-- + button with tooltip -->
+      <a href="{{ url_for('checkpoints.new_checkpoint') }}" class="icon-btn" aria-label="New Record">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
+        </svg>
+        <span class="tooltip">New Record</span>
+      </a>
     </div>
 
     <div class="ds-meta">
@@ -129,12 +229,33 @@
           </td>
           <td><span class="badge">{{ r.db_type }}</span></td>
           <td><span class="badge">{{ (r.category or 'OTHER') }}</span></td>
-          <td><span class="badge">{{ (r.severity or 'major')|upper }}</span></td>
+
+          {% set sev = (r.severity or 'major')|lower %}
+          <td>
+            <span class="badge badge-sev
+              {% if sev=='critical' %}badge-sev-critical
+              {% elif sev=='major' %}badge-sev-major
+              {% elif sev=='minor' %}badge-sev-minor
+              {% elif sev=='caution' %}badge-sev-caution
+              {% else %}badge-sev-info
+              {% endif %}
+            ">
+              {{ sev }}
+            </span>
+          </td>
+
           <td class="actions">
             <form action="{{ url_for('checkpoints.delete_checkpoint', checkpoint_id=r.id) }}"
                   method="post" style="display:inline"
                   onsubmit="return confirm('Delete {{ r.name }}?');">
-              <button class="danger" type="submit">Delete</button>
+              <button class="danger icon-danger" type="submit" aria-label="Delete">
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 3h6l1 2h5v2H3V5h5l1-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M6 9h12l-1 12H7L6 9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M10 13v6M14 13v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span class="btn-tip">Delete</span>
+              </button>
             </form>
           </td>
         </tr>
