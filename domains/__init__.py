@@ -7,3 +7,4 @@ from flask import Blueprint
 domains_bp = Blueprint("domains", __name__, template_folder="../templates")
 
 from . import routes  # noqa: E402,F401
+from . import routes_domain_run  # noqa: E402,F401

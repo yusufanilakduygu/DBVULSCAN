@@ -29,6 +29,24 @@
 .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid #e5e9f2;font-size:12px;}
 .badge.on{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
 .badge.off{background:#fef2f2;border-color:#fecaca;color:#7f1d1d;}
+
+/* sadece ikon butonu için (tasarımı bozmaz) */
+.icon-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:34px;
+  height:30px;
+  padding:0;
+  border-radius:8px;
+  border:1px solid #2563eb;
+  background:#fff;
+  color:#2563eb;
+  text-decoration:none;
+  line-height:1;
+  font-size:16px;
+}
+.icon-btn:hover{background:#f8fafc;}
 </style>
 
 <div class="ds-wrap">
@@ -93,7 +111,15 @@
           <td>{{ d.updated_at }}</td>
           <td>
             <div class="row-actions">
-              <a class="btn-secondary" href="{{ url_for('domains.edit_domain', domain_id=d.domain_id) }}">Edit</a>
+
+              <!-- SHOW DOMAIN RUNS (Edit yerine) -->
+              <a
+                class="icon-btn"
+                href="{{ url_for('domains.list_domain_runs', domain_id=d.domain_id) }}"
+                title="Show Domain Runs"
+                aria-label="Show Domain Runs"
+              >≡</a>
+
             </div>
           </td>
         </tr>

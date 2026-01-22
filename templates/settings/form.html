@@ -45,9 +45,25 @@
           </div>
         </div>
 
-        <div class="form-row">
+        {% set keyval = (row.setting_key if row else '') or '' %}
+        <div class="form-row" id="row_value_text">
           <label for="setting_value">Value</label>
           <textarea id="setting_value" name="setting_value">{{ (row.setting_value if row else '') }}</textarea>
+        </div>
+
+        <div class="form-row" id="row_value_password" style="display:none;">
+          <label for="setting_value_password">Value</label>
+          <input
+            id="setting_value_password"
+            name="setting_value_password"
+            type="password"
+            value=""
+            placeholder="********"
+            autocomplete="new-password"
+          >
+          <div class="form-help">
+            <strong>smtp_password</strong> is hidden. Leave blank to keep the current password.
+          </div>
         </div>
 
         <div class="form-row">
@@ -77,4 +93,34 @@
     </div>
   </div>
 </div>
+
+<script>
+(function(){
+  function toggle(){
+    var key = document.getElementById('setting_key');
+    if(!key) return;
+    var isPwd = (key.value || '').trim() === 'smtp_password';
+    var textRow = document.getElementById('row_value_text');
+    var pwdRow  = document.getElementById('row_value_password');
+    if(!textRow || !pwdRow) return;
+
+    if(isPwd){
+      textRow.style.display = 'none';
+      pwdRow.style.display = '';
+    } else {
+      textRow.style.display = '';
+      pwdRow.style.display = 'none';
+    }
+  }
+
+  // initial
+  toggle();
+
+  // create mode: key is editable, so live toggle
+  var keyInput = document.getElementById('setting_key');
+  if(keyInput && !keyInput.hasAttribute('readonly')){
+    keyInput.addEventListener('input', toggle);
+  }
+})();
+</script>
 {% endblock %}

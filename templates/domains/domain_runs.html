@@ -1,0 +1,118 @@
+{% extends "layout.html" %}
+{% block title %}Domain Runs · DB Vulnerability Scan{% endblock %}
+{% block content %}
+<style>
+.ds-wrap{background:#fff;border:1px solid #e5e9f2;border-radius:12px;}
+.ds-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e9f2;flex-wrap:wrap;gap:10px;}
+.ds-title{font-weight:800;}
+.ds-meta{font-size:12px;color:#64748b;}
+.ds-actions{display:flex;gap:8px;align-items:center;}
+.btn-icon{display:inline-flex;align-items:center;justify-content:center;gap:0;line-height:1;padding:8px 12px;border-radius:8px;text-decoration:none;}
+.btn-icon svg{width:16px;height:16px;}
+.btn-icon-ghost{background:#fff;color:#2563eb;border:1px solid #e5e9f2;}
+.btn-icon-ghost:hover{background:#f8fafc;}
+.ds-table{width:100%;border-collapse:collapse;}
+.ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
+.ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;}
+.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.filters select{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;}
+.filters .btn-link{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;cursor:pointer;text-decoration:none;color:#374151;}
+.filters .btn-link:hover{background:#f8fafc;}
+
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid #e5e9f2;font-size:12px;}
+.badge.started{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
+.badge.completed{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
+.badge.partial{background:#fffbeb;border-color:#fcd34d;color:#92400e;}
+
+.row-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.row-actions a{font-size:12px;border-radius:8px;text-decoration:none;white-space:nowrap;}
+
+@media (max-width: 980px){
+  .ds-head{flex-direction:column;align-items:flex-start;}
+}
+</style>
+
+<div class="ds-wrap">
+  <div class="ds-head">
+    <div>
+      <div class="ds-title">Domain Runs</div>
+      <div class="ds-meta">
+        {% if domain %}
+          Domain: <strong>{{ domain.name }}</strong> (ID: {{ domain.domain_id }})
+        {% else %}
+          Domain ID: <strong>{{ domain_id }}</strong>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="filters">
+      <form method="get" action="{{ url_for('domains.list_domain_runs', domain_id=domain_id) }}">
+        <select name="status" onchange="this.form.submit()">
+          <option value="">Status (All)</option>
+          <option value="started" {% if f_status=='started' %}selected{% endif %}>started</option>
+          <option value="completed" {% if f_status=='completed' %}selected{% endif %}>completed</option>
+          <option value="partial" {% if f_status=='partial' %}selected{% endif %}>partial</option>
+        </select>
+
+        <a class="btn-link btn-icon" title="Reset" href="{{ url_for('domains.list_domain_runs', domain_id=domain_id, reset=1) }}" aria-label="Reset">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </form>
+    </div>
+
+    <div class="ds-actions">
+      <a class="btn-icon btn-icon-ghost" href="{{ url_for('domains.list_domains') }}" title="Back to Domains" aria-label="Back to Domains">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="ds-table">
+      <thead>
+        <tr>
+          <th>Run ID</th>
+          <th>Started At</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in runs %}
+        <tr>
+          <td>{{ r.domain_run_id }}</td>
+          <td>{{ r.started_at }}</td>
+          <td>
+            <span class="badge {{ r.status }}">{{ r.status }}</span>
+          </td>
+          <td>
+            <div class="row-actions">
+              <!-- Placeholder action: "list butonu koy ve bekle" -->
+              <a class="btn-icon btn-icon-ghost" href="#" onclick="return false;" title="List" aria-label="List">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M8 6h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M8 12h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M8 18h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M3 6h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M3 12h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M3 18h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                </svg>
+              </a>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="4" style="color:#6b7280;">No runs found.</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

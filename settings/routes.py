@@ -4,6 +4,8 @@ import pymysql
 from db import get_db
 from security import login_required, admin_required
 from . import settings_bp
+import smtplib
+from email.message import EmailMessage
 
 
 # LIST
@@ -99,7 +101,11 @@ def create_setting():
     if request.method == "POST":
         f = request.form
         setting_key = (f.get("setting_key") or "").strip()
-        setting_value = (f.get("setting_value") or "").strip()
+        # smtp_password is masked in UI; value comes from setting_value_password
+        if setting_key == "smtp_password":
+            setting_value = (f.get("setting_value_password") or "").strip()
+        else:
+            setting_value = (f.get("setting_value") or "").strip()
         value_type = (f.get("value_type") or "string").strip()
         description = (f.get("description") or "").strip() or None
 
@@ -148,7 +154,12 @@ def edit_setting(setting_key: str):
     if request.method == "POST":
         f = request.form
         # key'i burada değiştirtmiyoruz, sadece value/type/description
-        setting_value = (f.get("setting_value") or "").strip()
+        if setting_key == "smtp_password":
+            # masked: blank means keep existing
+            new_pwd = (f.get("setting_value_password") or "").strip()
+            setting_value = new_pwd if new_pwd else (row.get("setting_value") or "")
+        else:
+            setting_value = (f.get("setting_value") or "").strip()
         value_type = (f.get("value_type") or "string").strip()
         description = (f.get("description") or "").strip() or None
 
@@ -172,6 +183,91 @@ def edit_setting(setting_key: str):
         return redirect(url_for("settings.list_settings"))
 
     return render_template("settings/form.html", mode="edit", row=row)
+
+
+def _get_setting_value(key: str):
+    with get_db().cursor() as cur:
+        cur.execute("SELECT setting_value FROM settings WHERE setting_key=%s", (key,))
+        r = cur.fetchone()
+        return (r["setting_value"] if r else None)
+
+
+def _truthy(val: str | None) -> bool:
+    if val is None:
+        return False
+    v = str(val).strip().lower()
+    return v in {"1", "true", "yes", "on", "enabled"}
+
+
+@settings_bp.route("/mail-test", methods=["POST"])
+@login_required
+@admin_required
+def mail_test():
+    # Minimal keys (as discussed in the UI):
+    # smtp_enabled, smtp_host, smtp_port, smtp_security, smtp_username, smtp_password,
+    # smtp_from_address, smtp_from_name
+    smtp_enabled = _get_setting_value("smtp_enabled")
+    if smtp_enabled is not None and not _truthy(smtp_enabled):
+        flash("SMTP is disabled (smtp_enabled=0).", "warning")
+        return redirect(url_for("settings.list_settings"))
+
+    host = (_get_setting_value("smtp_host") or "").strip()
+    port_raw = (_get_setting_value("smtp_port") or "").strip()
+    security = ((_get_setting_value("smtp_security") or "none").strip().lower())
+    username = (_get_setting_value("smtp_username") or "").strip()
+    password = (_get_setting_value("smtp_password") or "").strip()
+    from_addr = (_get_setting_value("smtp_from_address") or username).strip()
+    from_name = (_get_setting_value("smtp_from_name") or "OmniRiskDB").strip()
+
+    if not host or not port_raw:
+        flash("SMTP host/port is missing.", "danger")
+        return redirect(url_for("settings.list_settings"))
+
+    try:
+        port = int(port_raw)
+    except ValueError:
+        flash("SMTP port must be numeric.", "danger")
+        return redirect(url_for("settings.list_settings"))
+
+    if not from_addr:
+        flash("From address is missing (smtp_from_address).", "danger")
+        return redirect(url_for("settings.list_settings"))
+
+    # Send test mail to the same address (simple outbound verification)
+    to_addr = from_addr
+
+    msg = EmailMessage()
+    msg["Subject"] = "OmniRiskDB SMTP Test"
+    msg["From"] = f"{from_name} <{from_addr}>" if from_name else from_addr
+    msg["To"] = to_addr
+    msg.set_content(
+        "This is a test email sent from DBVulScan Settings page.\n"
+        f"Host: {host}\nPort: {port}\nSecurity: {security}\n"
+    )
+
+    try:
+        if security == "ssl":
+            server = smtplib.SMTP_SSL(host, port, timeout=15)
+        else:
+            server = smtplib.SMTP(host, port, timeout=15)
+        try:
+            server.ehlo()
+            if security == "starttls":
+                server.starttls()
+                server.ehlo()
+            if username:
+                server.login(username, password)
+            server.send_message(msg)
+        finally:
+            try:
+                server.quit()
+            except Exception:
+                pass
+        flash(f"Test mail sent to {to_addr}.", "success")
+    except Exception as e:
+        flash(f"Test mail failed: {str(e)}", "danger")
+
+    return redirect(url_for("settings.list_settings"))
 
 
 # DELETE
