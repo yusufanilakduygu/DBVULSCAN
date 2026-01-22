@@ -30,7 +30,7 @@
 .badge.on{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
 .badge.off{background:#fef2f2;border-color:#fecaca;color:#7f1d1d;}
 
-/* sadece ikon butonu için (tasarımı bozmaz) */
+/* ikon butonu (mevcut tasarımı bozmaz) */
 .icon-btn{
   display:inline-flex;
   align-items:center;
@@ -81,6 +81,14 @@
     </div>
   </div>
 
+  {% if request.args.get('domain_run_id') %}
+    <div style="padding:10px 14px;border-bottom:1px solid #e5e9f2;background:#f8fafc;color:#0f172a;font-size:13px;">
+      <strong>Last Domain Run:</strong>
+      #{{ request.args.get('domain_run_id') }} —
+      <strong>Status:</strong> {{ request.args.get('run_status') }}
+    </div>
+  {% endif %}
+
   <div class="overflow-x-auto">
     <table class="ds-table">
       <thead>
@@ -112,7 +120,15 @@
           <td>
             <div class="row-actions">
 
-              <!-- SHOW DOMAIN RUNS (Edit yerine) -->
+              <!-- RUN DOMAIN RUN -->
+              <a
+                class="icon-btn"
+                href="{{ url_for('domains.run_domain_run', domain_id=d.domain_id) }}"
+                title="Run Domain Run"
+                aria-label="Run Domain Run"
+              >▶</a>
+
+              <!-- SHOW DOMAIN RUNS -->
               <a
                 class="icon-btn"
                 href="{{ url_for('domains.list_domain_runs', domain_id=d.domain_id) }}"

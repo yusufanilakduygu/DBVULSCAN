@@ -5,6 +5,7 @@ from flask import flash, redirect, render_template, request, session, url_for
 from db import get_db
 
 from . import domains_bp
+from .domain_run import run_domain
 
 
 def _get_persisted(key: str, default: str = "") -> str:
@@ -18,6 +19,7 @@ def _get_persisted(key: str, default: str = "") -> str:
 
 @domains_bp.route("/")
 def list_domains():
+    """List domains with persisted filters."""
     if request.args.get("reset") == "1":
         session.pop("domains_q", None)
         session.pop("domains_active", None)
@@ -28,9 +30,11 @@ def list_domains():
 
     conditions = []
     params = []
+
     if search:
-        conditions.append("name LIKE %s")
-        params.append(f"%{search}%")
+        conditions.append("(name LIKE %s OR description LIKE %s)")
+        like = f"%{search}%"
+        params.extend([like, like])
 
     if f_active in ("1", "0"):
         conditions.append("is_active = %s")
@@ -47,7 +51,7 @@ def list_domains():
         SELECT domain_id, name, description, is_active, created_at, updated_at
         FROM domains
         {where_clause}
-        ORDER BY updated_at DESC, created_at DESC
+        ORDER BY domain_id DESC
         """,
         params,
     )
@@ -61,25 +65,48 @@ def list_domains():
     )
 
 
+@domains_bp.route("/run/<int:domain_id>")
+def run_domain_run(domain_id: int):
+    """
+    Run Domain Run for given domain_id (calls domains/domain_run.py: run_domain(domain_id))
+    and return back to Domains list.
+    """
+    try:
+        domain_run_id, final_status = run_domain(domain_id)
+
+        # Aynı liste ekranına geri dön ve info taşı
+        return redirect(
+            url_for(
+                "domains.list_domains",
+                domain_run_id=domain_run_id,
+                run_status=final_status,
+                run_domain_id=domain_id,
+            )
+        )
+    except Exception as e:
+        flash(f"Domain run failed: {e}", "error")
+        return redirect(url_for("domains.list_domains"))
+
+
 @domains_bp.route("/new", methods=["GET", "POST"])
 def new_domain():
-    db = get_db()
-    cur = db.cursor()
-
+    """Create a new domain."""
     if request.method == "POST":
         name = (request.form.get("name") or "").strip()
-        description = request.form.get("description")
+        description = (request.form.get("description") or "").strip()
         is_active = 1 if request.form.get("is_active") == "1" else 0
 
         if not name:
             flash("Name is required.", "error")
-            return redirect(url_for("domains.new_domain"))
+            return render_template("domains/form.html", domain=None)
 
+        db = get_db()
+        cur = db.cursor()
         try:
             cur.execute(
                 """
-                INSERT INTO domains (name, description, is_active)
-                VALUES (%s, %s, %s)
+                INSERT INTO domains (name, description, is_active, created_at, updated_at)
+                VALUES (%s, %s, %s, NOW(), NOW())
                 """,
                 (name, description, is_active),
             )
@@ -95,26 +122,32 @@ def new_domain():
 
 @domains_bp.route("/edit/<int:domain_id>", methods=["GET", "POST"])
 def edit_domain(domain_id: int):
+    """Edit an existing domain."""
     db = get_db()
     cur = db.cursor()
 
     cur.execute(
-        "SELECT domain_id, name, description, is_active, created_at, updated_at FROM domains WHERE domain_id=%s",
+        """
+        SELECT domain_id, name, description, is_active, created_at, updated_at
+        FROM domains
+        WHERE domain_id=%s
+        """,
         (domain_id,),
     )
     domain = cur.fetchone()
+
     if not domain:
         flash("Domain not found.", "error")
         return redirect(url_for("domains.list_domains"))
 
     if request.method == "POST":
         name = (request.form.get("name") or "").strip()
-        description = request.form.get("description")
+        description = (request.form.get("description") or "").strip()
         is_active = 1 if request.form.get("is_active") == "1" else 0
 
         if not name:
             flash("Name is required.", "error")
-            return redirect(url_for("domains.edit_domain", domain_id=domain_id))
+            return render_template("domains/form.html", domain=domain)
 
         try:
             cur.execute(
