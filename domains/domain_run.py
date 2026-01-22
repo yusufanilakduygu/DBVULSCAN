@@ -22,7 +22,17 @@ def _get_domain_assessment_ids(domain_id: int) -> List[int]:
         (domain_id,),
     )
     rows = cur.fetchall() or []
-    return [int(r[0]) for r in rows]
+
+    ids: List[int] = []
+    for r in rows:
+        # DictCursor ise: {"assessment_id": 2}
+        if isinstance(r, dict):
+            ids.append(int(r["assessment_id"]))
+        else:
+            # Tuple/sequence ise: (2,)
+            ids.append(int(r[0]))
+    return ids
+
 
 
 def _create_domain_run(domain_id: int) -> int:
@@ -67,9 +77,15 @@ def _get_assessment_run_status(run_id: int, run_month: int) -> str:
     )
     row = cur.fetchone()
     if not row:
-        # Normalde olmamalı; ama fail-safe:
         return "incomplete"
+
+    # DictCursor ise: {"status": "success"}
+    if isinstance(row, dict):
+        return str(row["status"])
+
+    # Tuple/sequence ise: ("success",)
     return str(row[0])
+
 
 
 def _finalize_domain_run(domain_run_id: int, status: str) -> None:

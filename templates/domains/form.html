@@ -8,6 +8,12 @@
 .form-title{font-size:18px;font-weight:800;margin-bottom:14px;color:#111827;}
 .form-wrap label{font-size:14px;font-weight:600;display:block;margin-bottom:4px;}
 .form-wrap input[type="text"], .form-wrap select, .form-wrap textarea{width:100%;padding:8px 10px;border:1px solid #d9d9d9;border-radius:8px;}
+.grid-2{display:grid;grid-template-columns:1.5fr 0.7fr;gap:14px;align-items:end;}
+.section-title{margin-top:18px;font-weight:800;color:#111827;}
+.tbl{width:100%;border-collapse:collapse;margin-top:8px;}
+.tbl th,.tbl td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
+.tbl thead th{background:#f8fafc;font-size:12px;color:#111827;}
+.muted{color:#64748b;font-size:12px;}
 .form-actions{display:flex;gap:10px;margin-top:16px;}
 .btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8;padding:8px 14px;border-radius:8px;text-decoration:none;}
 .btn-secondary{background:#fff;color:#2563eb;border:1px solid #2563eb;padding:8px 14px;border-radius:8px;text-decoration:none;}
@@ -19,17 +25,56 @@
   </div>
 
   <form method="post">
-    <label>Domain Name</label>
-    <input type="text" name="name" required value="{{ domain.name if domain else '' }}">
 
-    <label>Description</label>
-    <textarea name="description" rows="4">{{ domain.description if domain else '' }}</textarea>
+    <div class="grid-2">
+      <div>
+        <label>Domain Name</label>
+        <input type="text" name="name" required value="{{ domain.name if domain else '' }}">
+      </div>
 
-    <label>Status</label>
-    <select name="is_active">
-      <option value="1" {% if domain and domain.is_active==1 %}selected{% elif not domain %}selected{% endif %}>active</option>
-      <option value="0" {% if domain and domain.is_active==0 %}selected{% endif %}>inactive</option>
-    </select>
+      <div>
+        <label>Status</label>
+        <select name="is_active">
+          <option value="1" {% if domain and domain.is_active==1 %}selected{% elif not domain %}selected{% endif %}>active</option>
+          <option value="0" {% if domain and domain.is_active==0 %}selected{% endif %}>inactive</option>
+        </select>
+      </div>
+    </div>
+
+    <label style="margin-top:12px;">Description</label>
+    <textarea name="description" rows="6">{{ domain.description if domain else '' }}</textarea>
+
+    {% if domain %}
+      <div class="section-title">List of Assessments</div>
+      <div class="muted">Assessments linked to this domain (read-only)</div>
+
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Assessment Name</th>
+            <th>Datasource</th>
+            <th>Benchmark</th>
+            <th>DB Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if assessments and assessments|length > 0 %}
+            {% for a in assessments %}
+              <tr>
+                <td>{{ a.name }}</td>
+                <td>{{ a.datasource_name }}</td>
+                <td>{{ a.benchmark_name }}</td>
+                <td>{{ a.db_type }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="4" class="muted">No assessments found for this domain.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    {% endif %}
 
     <div class="form-actions">
       <button type="submit" class="btn-primary">Save</button>

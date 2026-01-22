@@ -74,7 +74,6 @@ def run_domain_run(domain_id: int):
     try:
         domain_run_id, final_status = run_domain(domain_id)
 
-        # Aynı liste ekranına geri dön ve info taşı
         return redirect(
             url_for(
                 "domains.list_domains",
@@ -118,54 +117,3 @@ def new_domain():
             flash(f"Create failed: {e}", "error")
 
     return render_template("domains/form.html", domain=None)
-
-
-@domains_bp.route("/edit/<int:domain_id>", methods=["GET", "POST"])
-def edit_domain(domain_id: int):
-    """Edit an existing domain."""
-    db = get_db()
-    cur = db.cursor()
-
-    cur.execute(
-        """
-        SELECT domain_id, name, description, is_active, created_at, updated_at
-        FROM domains
-        WHERE domain_id=%s
-        """,
-        (domain_id,),
-    )
-    domain = cur.fetchone()
-
-    if not domain:
-        flash("Domain not found.", "error")
-        return redirect(url_for("domains.list_domains"))
-
-    if request.method == "POST":
-        name = (request.form.get("name") or "").strip()
-        description = (request.form.get("description") or "").strip()
-        is_active = 1 if request.form.get("is_active") == "1" else 0
-
-        if not name:
-            flash("Name is required.", "error")
-            return render_template("domains/form.html", domain=domain)
-
-        try:
-            cur.execute(
-                """
-                UPDATE domains
-                SET name=%s,
-                    description=%s,
-                    is_active=%s,
-                    updated_at=NOW()
-                WHERE domain_id=%s
-                """,
-                (name, description, is_active, domain_id),
-            )
-            db.commit()
-            flash("Domain updated.", "success")
-            return redirect(url_for("domains.list_domains"))
-        except Exception as e:
-            db.rollback()
-            flash(f"Update failed: {e}", "error")
-
-    return render_template("domains/form.html", domain=domain)
