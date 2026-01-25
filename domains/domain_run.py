@@ -50,17 +50,20 @@ def _create_domain_run(domain_id: int) -> int:
     return int(domain_run_id)
 
 
-def _link_domain_run_assessment(domain_run_id: int, assessment_run_id: int) -> None:
+def _link_domain_run_assessment(domain_run_id: int, assessment_run_id: int, run_month: int) -> None:
     db = get_db()
     cur = db.cursor()
     cur.execute(
         """
-        INSERT INTO domain_run_assessments (domain_run_id, assessment_run_id)
-        VALUES (%s, %s)
+        UPDATE assessment_runs
+        SET domain_run_id = %s
+        WHERE run_id = %s AND run_month = %s
+        LIMIT 1
         """,
-        (domain_run_id, assessment_run_id),
+        (domain_run_id, assessment_run_id, run_month),
     )
     db.commit()
+
 
 
 def _get_assessment_run_status(run_id: int, run_month: int) -> str:
@@ -129,7 +132,7 @@ def run_domain(domain_id: int) -> Tuple[int, str]:
             run_id, run_month = run_assessment(int(assessment_id))
 
             # domain_run -> assessment_run bağla
-            _link_domain_run_assessment(domain_run_id, int(run_id))
+            _link_domain_run_assessment(domain_run_id, int(run_id), int(run_month))
 
             # assessment status DB'den okunur
             a_status = _get_assessment_run_status(int(run_id), int(run_month))

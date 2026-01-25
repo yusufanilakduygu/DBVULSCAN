@@ -20,15 +20,20 @@
 .filters .btn-link:hover{background:#f8fafc;}
 
 .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid #e5e9f2;font-size:12px;}
-.badge.started{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
-.badge.completed{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
+.badge.incomplete{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
+.badge.success{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
 .badge.partial{background:#fffbeb;border-color:#fcd34d;color:#92400e;}
 
-.row-actions{display:flex;gap:6px;flex-wrap:wrap;}
-.row-actions a{font-size:12px;border-radius:8px;text-decoration:none;white-space:nowrap;}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:10px 14px;border-top:1px solid #eef2f7;flex-wrap:wrap;}
+.pager .meta{font-size:12px;color:#64748b;margin-right:auto;}
+.pager a{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;text-decoration:none;color:#2563eb;background:#fff;}
+.pager a:hover{background:#f8fafc;}
+.pager .disabled{opacity:.5;pointer-events:none;}
 
 @media (max-width: 980px){
   .ds-head{flex-direction:column;align-items:flex-start;}
+  .pager{justify-content:flex-start;}
+  .pager .meta{width:100%;}
 }
 </style>
 
@@ -39,8 +44,10 @@
       <div class="ds-meta">
         {% if domain %}
           Domain: <strong>{{ domain.name }}</strong> (ID: {{ domain.domain_id }})
+          · Page {{ page }} / {{ total_pages }} · Records: {{ total_records }}
         {% else %}
           Domain ID: <strong>{{ domain_id }}</strong>
+          · Page {{ page }} / {{ total_pages }} · Records: {{ total_records }}
         {% endif %}
       </div>
     </div>
@@ -49,12 +56,16 @@
       <form method="get" action="{{ url_for('domains.list_domain_runs', domain_id=domain_id) }}">
         <select name="status" onchange="this.form.submit()">
           <option value="">Status (All)</option>
-          <option value="started" {% if f_status=='started' %}selected{% endif %}>started</option>
-          <option value="completed" {% if f_status=='completed' %}selected{% endif %}>completed</option>
+          <option value="incomplete" {% if f_status=='incomplete' %}selected{% endif %}>incomplete</option>
+          <option value="success" {% if f_status=='success' %}selected{% endif %}>success</option>
           <option value="partial" {% if f_status=='partial' %}selected{% endif %}>partial</option>
         </select>
 
-        <a class="btn-link btn-icon" title="Reset" href="{{ url_for('domains.list_domain_runs', domain_id=domain_id, reset=1) }}" aria-label="Reset">
+        <input type="hidden" name="page" value="1">
+
+        <a class="btn-link btn-icon" title="Reset"
+           href="{{ url_for('domains.list_domain_runs', domain_id=domain_id, reset=1) }}"
+           aria-label="Reset">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -87,12 +98,9 @@
         <tr>
           <td>{{ r.domain_run_id }}</td>
           <td>{{ r.started_at }}</td>
-          <td>
-            <span class="badge {{ r.status }}">{{ r.status }}</span>
-          </td>
+          <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
           <td>
             <div class="row-actions">
-              <!-- Placeholder action: "list butonu koy ve bekle" -->
               <a class="btn-icon btn-icon-ghost" href="#" onclick="return false;" title="List" aria-label="List">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                   <path d="M8 6h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -113,6 +121,19 @@
       {% endfor %}
       </tbody>
     </table>
+  </div>
+
+  <div class="pager">
+    <div class="meta">Page {{ page }} / {{ total_pages }} · Records: {{ total_records }} · Per page: {{ per_page }}</div>
+
+    {% set prev_page = page - 1 %}
+    {% set next_page = page + 1 %}
+
+    <a class="{% if page <= 1 %}disabled{% endif %}"
+       href="{{ url_for('domains.list_domain_runs', domain_id=domain_id, status=f_status, page=prev_page) }}">Prev</a>
+
+    <a class="{% if page >= total_pages %}disabled{% endif %}"
+       href="{{ url_for('domains.list_domain_runs', domain_id=domain_id, status=f_status, page=next_page) }}">Next</a>
   </div>
 </div>
 {% endblock %}

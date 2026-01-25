@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from math import ceil
+
 from flask import redirect, render_template, request, session, url_for
 
 from db import get_db
@@ -18,18 +20,31 @@ def _get_persisted(key: str, default: str = "") -> str:
 
 @domains_bp.route("/runs/<int:domain_id>")
 def list_domain_runs(domain_id: int):
-    """List runs for a specific domain (domain_runs table)."""
-
+    # reset filters + page
     if request.args.get("reset") == "1":
         session.pop("domain_runs_status", None)
+        session.pop("domain_runs_page", None)
         return redirect(url_for("domains.list_domain_runs", domain_id=domain_id))
 
     f_status = _get_persisted("status", "")
 
+    # page (persist)
+    page_str = _get_persisted("page", "1")
+    try:
+        page = int(page_str)
+    except Exception:
+        page = 1
+    if page < 1:
+        page = 1
+
+    per_page = 10
+    offset = (page - 1) * per_page
+
     conditions = ["domain_id = %s"]
     params = [domain_id]
 
-    if f_status in ("started", "completed", "partial"):
+    # DB enum
+    if f_status in ("incomplete", "success", "partial"):
         conditions.append("status = %s")
         params.append(f_status)
 
@@ -38,21 +53,40 @@ def list_domain_runs(domain_id: int):
     db = get_db()
     cur = db.cursor()
 
-    # Domain header (name is useful in the runs screen title)
+    # Domain header
     cur.execute(
         "SELECT domain_id, name FROM domains WHERE domain_id=%s",
         (domain_id,),
     )
     domain = cur.fetchone()
 
+    # total records (for pagination)
+    cur.execute(
+        f"""
+        SELECT COUNT(*) AS cnt
+        FROM domain_runs
+        {where_clause}
+        """,
+        params,
+    )
+    row = cur.fetchone()
+    total_records = int(row["cnt"] if isinstance(row, dict) else row[0])
+
+    total_pages = max(1, int(ceil(total_records / per_page))) if total_records else 1
+    if page > total_pages:
+        page = total_pages
+        offset = (page - 1) * per_page
+
+    # page data
     cur.execute(
         f"""
         SELECT domain_run_id, domain_id, started_at, status
         FROM domain_runs
         {where_clause}
         ORDER BY started_at DESC, domain_run_id DESC
+        LIMIT %s OFFSET %s
         """,
-        params,
+        params + [per_page, offset],
     )
     runs = cur.fetchall()
 
@@ -62,4 +96,8 @@ def list_domain_runs(domain_id: int):
         runs=runs,
         domain_id=domain_id,
         f_status=f_status,
+        page=page,
+        total_pages=total_pages,
+        total_records=total_records,
+        per_page=per_page,
     )

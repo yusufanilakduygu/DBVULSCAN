@@ -5,38 +5,15 @@
 .ds-wrap{background:#fff;border:1px solid #e5e9f2;border-radius:12px;}
 .ds-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e9f2;flex-wrap:wrap;gap:10px;}
 .ds-title{font-weight:800;}
-.ds-actions a.btn{display:inline-block;padding:8px 12px;border-radius:8px;text-decoration:none;}
-.btn-primary{background:#2563eb;color:#fff;border:1px solid #1d4ed8;}
-.btn-primary:hover{background:#1d4ed8;}
-.btn-secondary{background:#fff;color:#2563eb;border:1px solid #2563eb;}
-.btn-secondary:hover{background:#f8fafc;}
-.ds-table{width:100%;border-collapse:collapse;}
-.ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
-.ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;}
-.search-box{display:flex;align-items:center;gap:6px;}
-.search-box input{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;width:260px;}
-.cp-link{color:#2563eb;font-weight:600;text-decoration:none;}
-.cp-link:hover{text-decoration:underline;}
-.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-.filters select{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;}
-.filters .btn-link{border:1px solid #e5e9f2;border-radius:8px;padding:6px 10px;font-size:13px;background:#fff;cursor:pointer;text-decoration:none;color:#374151;}
-.filters .btn-link:hover{background:#f8fafc;}
-.row-actions{display:flex;gap:6px;flex-wrap:wrap;}
-.row-actions a{font-size:12px;padding:6px 10px;border-radius:8px;text-decoration:none;white-space:nowrap;}
-@media (max-width: 980px){
-  .ds-head{flex-direction:column;align-items:flex-start;}
-}
-.badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid #e5e9f2;font-size:12px;}
-.badge.on{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
-.badge.off{background:#fef2f2;border-color:#fecaca;color:#7f1d1d;}
-
-/* ikon butonu (mevcut tasarımı bozmaz) */
+.ds-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.search-box form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.search-box input,.search-box select{border:1px solid #e5e9f2;border-radius:8px;padding:7px 10px;font-size:13px;background:#fff;}
 .icon-btn{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:34px;
-  height:30px;
+  width:38px;
+  height:34px;
   padding:0;
   border-radius:8px;
   border:1px solid #2563eb;
@@ -47,45 +24,72 @@
   font-size:16px;
 }
 .icon-btn:hover{background:#f8fafc;}
+.ds-table{width:100%;border-collapse:collapse;}
+.ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
+.ds-table thead th{background:#f8fafc;font-weight:700;border-top:none;}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid #e5e9f2;font-size:12px;}
+.badge.active{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
+.badge.inactive{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
+.row-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.row-actions a{font-size:12px;border-radius:8px;text-decoration:none;white-space:nowrap;}
+.btn-icon{display:inline-flex;align-items:center;justify-content:center;line-height:1;padding:8px 12px;border-radius:8px;text-decoration:none;}
+.btn-icon svg{width:16px;height:16px;}
+.btn-icon-ghost{background:#fff;color:#2563eb;border:1px solid #e5e9f2;}
+.btn-icon-ghost:hover{background:#f8fafc;}
+.name-link{color:#2563eb;text-decoration:none;font-weight:700;}
+.name-link:hover{text-decoration:underline;}
+
+.run-msg{
+  margin:12px 14px 0 14px;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid #e5e9f2;
+  background:#f8fafc;
+  font-size:13px;
+  color:#0f172a;
+}
+.run-msg strong{font-weight:800;}
+
+@media (max-width: 980px){
+  .ds-head{flex-direction:column;align-items:flex-start;}
+}
 </style>
 
 <div class="ds-wrap">
   <div class="ds-head">
     <div class="ds-title">Domains</div>
 
-    <!-- Search -->
     <div class="search-box">
       <form method="get" action="{{ url_for('domains.list_domains') }}">
         <input type="text" name="q" placeholder="Search domains..." value="{{ search or '' }}">
-        <input type="hidden" name="active" value="{{ f_active or '' }}">
-      </form>
-    </div>
-
-    <!-- Filters -->
-    <div class="filters">
-      <form method="get" action="{{ url_for('domains.list_domains') }}">
-        <input type="hidden" name="q" value="{{ search or '' }}">
 
         <select name="active" onchange="this.form.submit()">
-          <option value="">Status (All)</option>
-          <option value="1" {% if f_active=='1' %}selected{% endif %}>active</option>
-          <option value="0" {% if f_active=='0' %}selected{% endif %}>inactive</option>
+          <option value="">Active (All)</option>
+          <option value="1" {% if f_active == '1' %}selected{% endif %}>active</option>
+          <option value="0" {% if f_active == '0' %}selected{% endif %}>inactive</option>
         </select>
 
-        <a class="btn-link" href="{{ url_for('domains.list_domains', reset=1) }}">Reset</a>
+        <a class="icon-btn" title="Reset" href="{{ url_for('domains.list_domains', reset=1) }}" aria-label="Reset">↻</a>
+        <a class="icon-btn" title="New Record" href="{{ url_for('domains.new_domain') }}" aria-label="New Record">+</a>
       </form>
-    </div>
-
-    <div class="ds-actions">
-      <a href="{{ url_for('domains.new_domain') }}" class="btn btn-primary">New Domain</a>
     </div>
   </div>
 
-  {% if request.args.get('domain_run_id') %}
-    <div style="padding:10px 14px;border-bottom:1px solid #e5e9f2;background:#f8fafc;color:#0f172a;font-size:13px;">
-      <strong>Last Domain Run:</strong>
-      #{{ request.args.get('domain_run_id') }} —
-      <strong>Status:</strong> {{ request.args.get('run_status') }}
+  {% set _run_id = request.args.get('domain_run_id') %}
+  {% set _run_status = request.args.get('run_status') %}
+  {% set _run_domain_id = request.args.get('run_domain_id') %}
+  {% if _run_domain_id is none or _run_domain_id == '' %}
+    {% set _run_domain_id = request.args.get('domain_id') %}
+  {% endif %}
+
+  {% if _run_id and _run_status %}
+    <div class="run-msg">
+      Domain Run created:
+      <strong>#{{ _run_id }}</strong>
+      · status: <strong>{{ _run_status }}</strong>
+      {% if _run_domain_id %}
+        · domain_id: <strong>{{ _run_domain_id }}</strong>
+      {% endif %}
     </div>
   {% endif %}
 
@@ -93,55 +97,65 @@
     <table class="ds-table">
       <thead>
         <tr>
-          <th>Domain Name</th>
+          <th>ID</th>
+          <th>Name</th>
           <th>Description</th>
           <th>Status</th>
-          <th>Created</th>
-          <th>Updated</th>
-          <th>Actions</th>
+          <th style="width:160px;">Actions</th>
         </tr>
       </thead>
       <tbody>
       {% for d in domains %}
         <tr>
+          <td>{{ d.domain_id }}</td>
+
           <td>
-            <a class="cp-link" href="{{ url_for('domains.edit_domain', domain_id=d.domain_id) }}">{{ d.name }}</a>
+            <a class="name-link" href="{{ url_for('domains.edit_domain', domain_id=d.domain_id) }}">
+              {{ d.name }}
+            </a>
           </td>
+
           <td>{{ d.description }}</td>
           <td>
-            {% if d.is_active %}
-              <span class="badge on">active</span>
+            {% if d.is_active == 1 %}
+              <span class="badge active">active</span>
             {% else %}
-              <span class="badge off">inactive</span>
+              <span class="badge inactive">inactive</span>
             {% endif %}
           </td>
-          <td>{{ d.created_at }}</td>
-          <td>{{ d.updated_at }}</td>
+
           <td>
             <div class="row-actions">
 
-              <!-- RUN DOMAIN RUN -->
-              <a
-                class="icon-btn"
-                href="{{ url_for('domains.run_domain_run', domain_id=d.domain_id) }}"
-                title="Domain Run"
-                aria-label="Run Domain Run"
-              >▶</a>
+              <a class="btn-icon btn-icon-ghost"
+                 href="{{ url_for('domains.run_domain_run', domain_id=d.domain_id) }}"
+                 title="Run Domain Run"
+                 aria-label="Run Domain Run">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M8 5v14l11-7L8 5z" fill="currentColor"/>
+                </svg>
+              </a>
 
-              <!-- SHOW DOMAIN RUNS -->
-              <a
-                class="icon-btn"
-                href="{{ url_for('domains.list_domain_runs', domain_id=d.domain_id) }}"
-                title="Show Domain Runs"
-                aria-label="Show Domain Runs"
-              >≡</a>
+              <a class="btn-icon btn-icon-ghost"
+                 href="{{ url_for('domains.list_domain_runs', domain_id=d.domain_id) }}"
+                 title="Show Domain Runs"
+                 aria-label="Show Domain Runs">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M8 6h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M8 12h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M8 18h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M3 6h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M3 12h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M3 18h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                </svg>
+              </a>
 
             </div>
           </td>
         </tr>
       {% else %}
         <tr>
-          <td colspan="6" style="color:#6b7280;">No domains found.</td>
+          <td colspan="5" style="color:#6b7280;">No domains found.</td>
         </tr>
       {% endfor %}
       </tbody>
