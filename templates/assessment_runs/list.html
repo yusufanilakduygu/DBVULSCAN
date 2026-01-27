@@ -20,7 +20,17 @@
 .pager a:hover{background:#f8fafc;}
 .pager .nums{display:flex;gap:6px;flex-wrap:wrap;}
 .pager .active{background:#2563eb;color:#fff;border-color:#1d4ed8;}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #e5e9f2;background:#f8fafc;}
+
+/* smaller badges/labels */
+.badge{
+  display:inline-block;
+  padding:1px 6px;
+  border-radius:999px;
+  font-size:11px;
+  line-height:1.15;
+  border:1px solid #e5e9f2;
+  background:#f8fafc;
+}
 .badge-status-success{background:#dcfce7;border-color:#86efac;color:#166534;}
 .badge-status-error{background:#fee2e2;border-color:#fecaca;color:#991b1b;}
 .badge-status-unreachable{background:#f1f5f9;border-color:#cbd5e1;color:#0f172a;}
@@ -30,12 +40,28 @@
 .badge-risk-medium{background:#ffedd5;border-color:#fdba74;color:#9a3412;}
 .badge-risk-high{background:#ffe4e6;border-color:#fecdd3;color:#9f1239;}
 .badge-risk-critical{background:#fee2e2;border-color:#fecaca;color:#991b1b;}
+
 .link{color:#2563eb;text-decoration:none;font-weight:700;}
 .link:hover{text-decoration:underline;}
-.row-actions{display:flex;gap:8px;justify-content:flex-end;}
-.btn-small{display:inline-block;padding:6px 10px;border-radius:8px;text-decoration:none;font-size:13px;white-space:nowrap;}
-.btn-outline{background:#fff;color:#2563eb;border:1px solid #2563eb;}
-.btn-outline:hover{background:#f8fafc;}
+
+/* make domain_run_id & run_id columns narrower + 2-line headers */
+.col-id{
+  width: 78px;
+  max-width: 78px;
+  white-space: nowrap;
+  text-align: center;
+}
+.ds-table thead th.col-id{
+  padding: 8px 8px;
+  line-height: 1.05;
+  letter-spacing: -0.1px;
+}
+.id-cell{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color:#0f172a;
+  text-align:center;
+}
 </style>
 
 <div class="ds-wrap">
@@ -50,7 +76,17 @@
   </div>
 
   <div class="filters">
+    {# FIX: action must be assessment_runs.list_assessment_runs (domain_id burada yok) #}
     <form method="get" action="{{ url_for('assessment_runs.list_assessment_runs') }}">
+      <input type="number"
+             name="domain_run_id"
+             value="{{ filters.domain_run_id or '' }}"
+             placeholder="Domain Run ID"
+             title="Filter by domain_run_id"
+             min="1"
+             style="width:160px;"
+             onchange="this.form.submit()">
+
       <input type="date" name="start_date" value="{{ filters.start_date or '' }}" title="Start of executed_at" onchange="this.form.submit()">
       <input type="date" name="end_date" value="{{ filters.end_date or '' }}" title="End of executed_at" onchange="this.form.submit()">
 
@@ -98,14 +134,11 @@
   <table class="ds-table">
     <thead>
       <tr>
-        <th>run_id</th>
+        <th class="col-id">domain<br>run_id</th>
+        <th class="col-id">run<br>id</th>
         <th>assessment_name</th>
         <th>db_type</th>
         <th>status</th>
-        <th>total</th>
-        <th>success</th>
-        <th>fail</th>
-        <th>error</th>
         <th>success<br>pct</th>
         <th>risk</th>
         <th>risk<br>level</th>
@@ -117,16 +150,13 @@
     <tbody>
       {% for r in rows %}
       <tr>
-        <td>{{ r.run_id }}</td>
+        <td class="id-cell">{{ r.domain_run_id }}</td>
+        <td class="id-cell">{{ r.run_id }}</td>
         <td>
-        <a class="link" href="{{ url_for('assessment_runs.run_detail', run_id=r.run_id) }}">{{ r.assessment_name }}</a>
+          <a class="link" href="{{ url_for('assessment_runs.run_detail', run_id=r.run_id) }}">{{ r.assessment_name }}</a>
         </td>
         <td><span class="badge">{{ r.db_type }}</span></td>
         <td><span class="badge badge-status-{{ (r.status or '')|lower }}">{{ r.status }}</span></td>
-        <td>{{ r.total_count }}</td>
-        <td>{{ r.success_count }}</td>
-        <td>{{ r.fail_count }}</td>
-        <td>{{ r.error_count }}</td>
         <td>{{ r.success_pct }}</td>
         <td>{{ r.risk }}</td>
         {% set rl = (r.risk_level or '')|lower %}
@@ -138,7 +168,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="14" style="padding:16px;color:#64748b;">No records found.</td>
+        <td colspan="11" style="padding:16px;color:#64748b;">No records found.</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -149,6 +179,7 @@
       {% if page > 1 %}
         <a href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=page-1,
+                            domain_run_id=filters.domain_run_id,
                             start_date=filters.start_date, end_date=filters.end_date, assessment_id=filters.assessment_id,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">Prev</a>
@@ -156,6 +187,7 @@
       {% if page < total_pages %}
         <a href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=page+1,
+                            domain_run_id=filters.domain_run_id,
                             start_date=filters.start_date, end_date=filters.end_date, assessment_id=filters.assessment_id,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">Next</a>
@@ -169,6 +201,7 @@
         <a class="{% if p==page %}active{% endif %}"
            href="{{ url_for('assessment_runs.list_assessment_runs',
                             page=p,
+                            domain_run_id=filters.domain_run_id,
                             start_date=filters.start_date, end_date=filters.end_date, assessment_id=filters.assessment_id,
                             db_type=filters.db_type, status=filters.status, risk_level=filters.risk_level,
                             asset_adjusted_risk_level=filters.asset_adjusted_risk_level) }}">{{ p }}</a>

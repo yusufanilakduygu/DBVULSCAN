@@ -39,6 +39,7 @@ def _normalize_int(s: str) -> str:
 # -----------------------------
 def _get_runs_filters() -> Dict[str, str]:
     keys = [
+        "domain_run_id",
         "start_date",
         "end_date",
         "assessment_id",
@@ -55,10 +56,13 @@ def _get_runs_filters() -> Dict[str, str]:
     for k in keys:
         if k in request.args:
             val = (request.args.get(k, "") or "").strip()
+
             if k in ("start_date", "end_date"):
                 val = _normalize_date(val)
-            if k == "assessment_id":
+
+            if k in ("assessment_id", "domain_run_id"):
                 val = _normalize_int(val)
+
             out[k] = val
             touched = True
 
@@ -87,6 +91,11 @@ def list_assessment_runs():
 
     where: List[str] = []
     params: List[Any] = []
+
+    # domain_run_id (exact)
+    if f["domain_run_id"]:
+        where.append("domain_run_id = %s")
+        params.append(int(f["domain_run_id"]))
 
     # executed_at range (date inputs)
     if f["start_date"]:
@@ -135,8 +144,9 @@ def list_assessment_runs():
 
         offset = (page - 1) * PAGE_SIZE
 
+        # NOTE: total/success/fail/error kolonları çıkarıldı.
         sql = (
-            "SELECT run_id, assessment_id, assessment_name, db_type, status, total_count, success_count, fail_count, error_count, "
+            "SELECT domain_run_id, run_id, assessment_id, assessment_name, db_type, status, "
             "success_pct, risk, risk_level, asset_adjusted_risk, asset_adjusted_risk_level, executed_at "
             "FROM assessment_runs"
             + where_sql

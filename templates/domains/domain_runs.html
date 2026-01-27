@@ -101,7 +101,11 @@
           <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
           <td>
             <div class="row-actions">
-              <a class="btn-icon btn-icon-ghost" href="#" onclick="return false;" title="List" aria-label="List">
+              {# CHANGED: go to Assessment Results filtered by domain_run_id #}
+              <a class="btn-icon btn-icon-ghost"
+                 href="{{ url_for('assessment_runs.list_assessment_runs', domain_run_id=r.domain_run_id) }}"
+                 title="Show Assessment Results"
+                 aria-label="Show Assessment Results">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                   <path d="M8 6h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                   <path d="M8 12h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
