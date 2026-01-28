@@ -1,0 +1,219 @@
+{% extends "layout.html" %}
+{% block title %}{% if mode == 'edit' %}Edit Job{% else %}New Job{% endif %} · DB Vulnerability Scan{% endblock %}
+{% block content %}
+<style>
+  .wrapbox{background:#fff;border:1px solid #e5e9f2;border-radius:12px;}
+  .head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e9f2;gap:10px;flex-wrap:wrap;}
+  .title{font-weight:800;}
+  .meta{font-size:12px;color:#64748b;}
+
+  .body{padding:14px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field label{font-size:12px;color:#334155;font-weight:800;}
+  .field input,.field select,.field textarea{
+    border:1px solid #e5e9f2;border-radius:10px;padding:9px 10px;font-size:13px;background:#fff;
+  }
+  textarea{min-height:76px;resize:vertical;}
+
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .check{
+    display:inline-flex;align-items:center;gap:8px;
+    border:1px solid #e5e9f2;border-radius:10px;padding:9px 10px;background:#fff;
+    font-size:13px;
+  }
+
+  .actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    justify-content:space-between; /* solda Save, sağda Cancel */
+    padding:12px 14px;
+    border-top:1px solid #e5e9f2;
+    flex-wrap:wrap;
+  }
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:9px 14px;border-radius:10px;text-decoration:none;font-weight:800;font-size:13px;
+    border:1px solid #e5e9f2;background:#fff;color:#0f172a;
+  }
+  .btn-primary{background:#2563eb;border-color:#1d4ed8;color:#fff;}
+  .btn-primary:hover{background:#1d4ed8;}
+  .btn:hover{background:#f8fafc;}
+
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;}
+  .hidden{display:none !important;}
+  .full{grid-column:1 / -1;}
+
+  @media (max-width:980px){ .grid{grid-template-columns:1fr;} }
+</style>
+
+<div class="wrapbox">
+  <div class="head">
+    <div>
+      <div class="title">{% if mode == 'edit' %}Edit Job{% else %}New Job{% endif %}</div>
+      <div class="meta">
+        {% if mode == 'edit' and job %}job_id: <span class="mono">{{ job.job_id }}</span>{% else %}Create a new scheduled job{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <form class="body" method="post">
+    <div class="grid">
+
+      <!-- 1) Job Name (full width) -->
+      <div class="field full">
+        <label>Job Name</label>
+        <input name="job_name" value="{{ job.job_name if job else '' }}" required />
+      </div>
+
+      <!-- 2) Under Job Name: Job Type (left) + Job Parameter (right) -->
+      <div class="field">
+        <label>Job Type</label>
+        <select name="job_type" required>
+          {% set v = job.job_type if job else '' %}
+          <option value="assessment_run" {% if v=='assessment_run' %}selected{% endif %}>assessment_run</option>
+          <option value="domain_run" {% if v=='domain_run' %}selected{% endif %}>domain_run</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Job Parameter</label>
+        <input name="parameter" type="number" value="{{ job.parameter if job else 0 }}" required />
+      </div>
+
+      <!-- 3) Job Period (full width) -->
+      <div class="field full">
+        <label>Job Period</label>
+        <select id="job_period" name="job_period" required>
+          {% set p = job.job_period if job else 'daily' %}
+          <option value="daily" {% if p=='daily' %}selected{% endif %}>daily</option>
+          <option value="weekly" {% if p=='weekly' %}selected{% endif %}>weekly</option>
+          <option value="monthly" {% if p=='monthly' %}selected{% endif %}>monthly</option>
+        </select>
+      </div>
+
+      <!-- 4) Period details -->
+      <div class="field" id="field-hour">
+        <label>Hour (HH:MM)</label>
+        <input id="hour_parameter" name="hour_parameter" maxlength="5" placeholder="02:30"
+               value="{{ job.hour_parameter if job else '00:00' }}" required />
+      </div>
+
+      <div class="field" id="field-weekday">
+        <label>Weekday</label>
+        {% set wd = job.weekday_parameter if job else '' %}
+        <select id="weekday_parameter" name="weekday_parameter">
+          <option value="" {% if not wd %}selected{% endif %}></option>
+          <option value="sunday" {% if wd=='sunday' %}selected{% endif %}>sunday</option>
+          <option value="monday" {% if wd=='monday' %}selected{% endif %}>monday</option>
+          <option value="tuesday" {% if wd=='tuesday' %}selected{% endif %}>tuesday</option>
+          <option value="wednesday" {% if wd=='wednesday' %}selected{% endif %}>wednesday</option>
+          <option value="thursday" {% if wd=='thursday' %}selected{% endif %}>thursday</option>
+          <option value="friday" {% if wd=='friday' %}selected{% endif %}>friday</option>
+          <option value="saturday" {% if wd=='saturday' %}selected{% endif %}>saturday</option>
+        </select>
+      </div>
+
+      <div class="field hidden" id="field-monthday">
+        <label>Monthday (1-28)</label>
+        <input id="monthday_parameter" name="monthday_parameter" type="number" min="1" max="28"
+               value="{{ job.monthday_parameter if (job and job.monthday_parameter is not none) else '' }}" />
+      </div>
+
+      <div class="field hidden" id="field-monthday-spacer"></div>
+
+      <!-- Note -->
+      <div class="field full">
+        <label>Note</label>
+        <textarea name="note">{{ job.note if job and job.note else '' }}</textarea>
+      </div>
+
+      <!-- Cron entry FULL -->
+      <div class="field full">
+        <label>Cron Entry (settings + schedule)</label>
+        <input class="mono" name="cron_entry"
+               value="{{ cron_preview if cron_preview else (job.cron_entry if job else '') }}"
+               readonly />
+        <div class="meta">Schedule formdan, diğer tüm parametreler settings tablosundan gelir.</div>
+      </div>
+
+      <!-- Checkboxes -->
+      <div class="field full">
+        <div class="row">
+          {% set sm = (job.send_mail if job else 1) %}
+          {% set ia = (job.is_active if job else 1) %}
+
+          <label class="check">
+            <input type="checkbox" name="send_mail" value="1" {% if sm %}checked{% endif %}>
+            Send Mail
+          </label>
+
+          <label class="check">
+            <input type="checkbox" name="is_active" value="1" {% if ia %}checked{% endif %}>
+            Active
+          </label>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn" href="{{ url_for('jobs.list_jobs') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  function applyPeriodRules(){
+    const periodEl = document.getElementById("job_period");
+    const period = periodEl ? periodEl.value : "daily";
+
+    const weekdayField = document.getElementById("field-weekday");
+    const monthdayField = document.getElementById("field-monthday");
+    const monthdaySpacer = document.getElementById("field-monthday-spacer");
+
+    const weekdaySelect = document.getElementById("weekday_parameter");
+    const monthdayInput = document.getElementById("monthday_parameter");
+
+    if (weekdayField) weekdayField.classList.add("hidden");
+    if (monthdayField) monthdayField.classList.add("hidden");
+    if (monthdaySpacer) monthdaySpacer.classList.add("hidden");
+
+    if (weekdaySelect){
+      weekdaySelect.required = false;
+      weekdaySelect.disabled = true;
+      if (period !== "weekly") weekdaySelect.value = "";
+    }
+    if (monthdayInput){
+      monthdayInput.required = false;
+      monthdayInput.disabled = true;
+      monthdayInput.min = "1";
+      monthdayInput.max = "28";
+      if (period !== "monthly") monthdayInput.value = "";
+    }
+
+    if (period === "weekly"){
+      if (weekdayField) weekdayField.classList.remove("hidden");
+      if (weekdaySelect){
+        weekdaySelect.disabled = false;
+        weekdaySelect.required = true;
+      }
+    } else if (period === "monthly"){
+      if (monthdayField) monthdayField.classList.remove("hidden");
+      if (monthdaySpacer) monthdaySpacer.classList.remove("hidden");
+      if (monthdayInput){
+        monthdayInput.disabled = false;
+        monthdayInput.required = true;
+      }
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function(){
+    const p = document.getElementById("job_period");
+    if (p) p.addEventListener("change", applyPeriodRules);
+    applyPeriodRules();
+  });
+</script>
+{% endblock %}
