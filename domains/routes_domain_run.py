@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from math import ceil
+import os
 
-from flask import redirect, render_template, request, session, url_for
+from flask import redirect, render_template, request, session, url_for, send_file, abort
 
 from db import get_db
 
@@ -100,4 +101,62 @@ def list_domain_runs(domain_id: int):
         total_pages=total_pages,
         total_records=total_records,
         per_page=per_page,
+    )
+
+
+@domains_bp.route("/runs/report/summary/<int:domain_run_id>")
+def report_domain_summary(domain_run_id: int):
+    """
+    Default: inline preview (browser shows PDF)
+    Optional: ?download=1 -> attachment download
+    """
+    try:
+        from report_service.report_domain_summary import generate
+    except Exception:
+        abort(500, description="report_service module not found / import error.")
+
+    try:
+        pdf_path = generate(domain_run_id)
+    except FileNotFoundError as e:
+        abort(404, description=str(e))
+    except Exception as e:
+        abort(500, description=str(e))
+
+    filename = os.path.basename(pdf_path)
+    download = request.args.get("download") == "1"
+
+    return send_file(
+        pdf_path,
+        as_attachment=download,
+        download_name=filename,
+        mimetype="application/pdf",
+    )
+
+
+@domains_bp.route("/runs/report/detail/<int:domain_run_id>")
+def report_domain_detail(domain_run_id: int):
+    """
+    Default: inline preview (browser shows PDF)
+    Optional: ?download=1 -> attachment download
+    """
+    try:
+        from report_service.report_domain_detail import generate
+    except Exception:
+        abort(500, description="report_service module not found / import error.")
+
+    try:
+        pdf_path = generate(domain_run_id)
+    except FileNotFoundError as e:
+        abort(404, description=str(e))
+    except Exception as e:
+        abort(500, description=str(e))
+
+    filename = os.path.basename(pdf_path)
+    download = request.args.get("download") == "1"
+
+    return send_file(
+        pdf_path,
+        as_attachment=download,
+        download_name=filename,
+        mimetype="application/pdf",
     )

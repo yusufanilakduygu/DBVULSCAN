@@ -23,6 +23,7 @@
 .badge.incomplete{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
 .badge.success{background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
 .badge.partial{background:#fffbeb;border-color:#fcd34d;color:#92400e;}
+.badge.error{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
 
 .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:10px 14px;border-top:1px solid #eef2f7;flex-wrap:wrap;}
 .pager .meta{font-size:12px;color:#64748b;margin-right:auto;}
@@ -59,6 +60,7 @@
           <option value="incomplete" {% if f_status=='incomplete' %}selected{% endif %}>incomplete</option>
           <option value="success" {% if f_status=='success' %}selected{% endif %}>success</option>
           <option value="partial" {% if f_status=='partial' %}selected{% endif %}>partial</option>
+          <option value="error" {% if f_status=='error' %}selected{% endif %}>error</option>
         </select>
 
         <input type="hidden" name="page" value="1">
@@ -101,7 +103,7 @@
           <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
           <td>
             <div class="row-actions">
-              {# CHANGED: go to Assessment Results filtered by domain_run_id #}
+              {# Assessment Results #}
               <a class="btn-icon btn-icon-ghost"
                  href="{{ url_for('assessment_runs.list_assessment_runs', domain_run_id=r.domain_run_id) }}"
                  title="Show Assessment Results"
@@ -115,6 +117,32 @@
                   <path d="M3 18h.01" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
                 </svg>
               </a>
+
+              {# Domain Summary Report #}
+              <a class="btn-icon btn-icon-ghost"
+                 href="{{ url_for('domains.report_domain_summary', domain_run_id=r.domain_run_id) }}"
+                 title="Domain Summary Report"
+                 aria-label="Domain Summary Report">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M3 3v18h18" stroke="currentColor" stroke-width="2"/>
+                  <path d="M7 15v3" stroke="currentColor" stroke-width="2"/>
+                  <path d="M12 11v7" stroke="currentColor" stroke-width="2"/>
+                  <path d="M17 7v11" stroke="currentColor" stroke-width="2"/>
+                </svg>
+              </a>
+
+              {# Domain Detail Report #}
+              <a class="btn-icon btn-icon-ghost"
+                 href="{{ url_for('domains.report_domain_detail', domain_run_id=r.domain_run_id) }}"
+                 title="Domain Detail Report"
+                 aria-label="Domain Detail Report">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"
+                        stroke="currentColor" stroke-width="2"/>
+                  <path d="M15 2v5h5" stroke="currentColor" stroke-width="2"/>
+                </svg>
+              </a>
+
             </div>
           </td>
         </tr>
