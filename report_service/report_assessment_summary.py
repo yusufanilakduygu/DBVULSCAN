@@ -10,16 +10,162 @@ from weasyprint import CSS, HTML
 from db import get_db
 
 
+# ✅ CSS artık dosyada değil, burada:
+ASSESSMENT_RUN_SUMMARY_CSS = r"""
+:root{
+  --font-mono: "DejaVu Sans Mono", "Liberation Mono", "Courier New", monospace;
+}
+
+html, body{
+  margin:0;
+  padding:0;
+  background:#fff;
+  color:#000;
+  font-family: var(--font-mono);
+  font-size: 8pt;
+  line-height: 1.22;
+}
+
+@page{
+  size: A4;
+  margin: 10mm 14mm 12mm 14mm;
+
+  @top-right{
+    content: "OmniRiskDB by Arbo Security";
+    font-size: 6.5pt;
+    color: #666;
+  }
+
+  @bottom-right{
+    content: "Page " counter(page) " / " counter(pages);
+    font-size: 7pt;
+  }
+}
+
+.shadow-box{
+  border: 1px solid #9aa3ad;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 1.2px 1.2px 0 rgba(0,0,0,0.22);
+}
+
+.report-title{
+  text-align:center;
+  font-size: 19pt;
+  font-weight: 800;
+  margin: 0 0 5mm 0;
+}
+
+.box-title,
+.section-title{
+  font-weight: 900;
+  font-size: 10.5pt;
+  margin-bottom: 3mm;
+}
+
+.section{ margin-top: 7mm; }
+
+.summary-box{ padding: 5mm 6mm; }
+
+.kv-row{
+  display:grid;
+  grid-template-columns: 60mm 6mm 1fr;
+  gap: 1.5mm;
+  margin: 0.6mm 0;
+}
+
+.kv-key{ font-weight: 800; }
+
+.tbl{
+  width:100%;
+  border-collapse: collapse;
+  font-size: 8pt;
+}
+
+.tbl th, .tbl td{
+  border:1px solid #8b8b8b;
+  padding:3px 5px;
+  word-break: break-word;
+}
+
+.tbl-metrics thead th{
+  background:#f0f2f5;
+}
+
+/* Category blocks in Checkpoint Test Results */
+.cat-title{
+  font-weight: 900;
+  font-size: 9.5pt;
+  margin: 0 0 2mm 0;
+}
+
+.cat-sep{
+  border-top: 1px solid #000;
+  margin: 1.5mm 0;
+}
+
+/* NEW: Space between categories */
+.cat-gap{
+  height: 4mm;   /* “bir satır boşluk” hissi */
+}
+
+.tbl-cat-metrics thead th{
+  background:#f0f2f5;
+}
+
+.res-fail{ color:#b00000; font-weight:900; }
+
+/* Base badge styles */
+.lvl,
+.sev,
+.impact{
+  display:inline-block;
+  padding:1px 5px;
+  border-radius:2px;
+  font-weight:900;
+}
+
+/* Risk box spacing */
+.risk-box{ padding: 0 6mm; }
+.risk-padding-top{ height: 4mm; }
+.risk-padding-bottom{ height: 4mm; }
+
+.risk-label{ font-weight:900; }
+.risk-separator{
+  border-top:1px solid #c9cfd6;
+  margin:4mm 0;
+}
+
+/* Risk badges */
+.lvl-low{ color:#2f6b2f; background:#edf5ed; }
+.lvl-medium{ color:#8a6d00; background:#fbf4d8; }
+.lvl-high{ color:#a45a00; background:#fbe9d8; }
+.lvl-critical{ color:#8f0000; background:#f6dede; }
+
+/* Asset impact badges */
+.impact-very-low{ color:#2f6b2f; background:#edf5ed; }
+.impact-low{ color:#2f6b2f; background:#edf5ed; }
+.impact-medium{ color:#8a6d00; background:#fbf4d8; }
+.impact-high{ color:#a45a00; background:#fbe9d8; }
+.impact-critical{ color:#8f0000; background:#f6dede; }
+
+/* Severity badges (mat) */
+.sev-critical{ color:#8f0000; background:#f6dede; }
+.sev-major{ color:#a45a00; background:#fbe9d8; }
+.sev-minor{ color:#8a6d00; background:#fbf4d8; }
+.sev-caution{ color:#2f6b2f; background:#edf5ed; }
+
+thead{ display: table-header-group; }
+tr{ break-inside: avoid; }
+"""
+
+
 def _project_root() -> Path:
     """
     /home/anil/dbvulscan/report_service/report_assessment_summary.py
     -> parents[1] = /home/anil/dbvulscan
     """
     return Path(__file__).resolve().parents[1]
-
-
-def _css_path() -> Path:
-    return _project_root() / "static" / "reports" / "assessment_run_summary.css"
 
 
 def _get_setting_value(setting_key: str) -> Optional[str]:
@@ -219,16 +365,13 @@ def generate(run_id: int, output_dir: Optional[str] = None, force: bool = False)
             report_categories=report_categories,
             cp_by_category=cp_by_category,
             cat_metrics=cat_metrics,
-            css_href="",  # PDF uses CSS file directly
+            css_href="",  # PDF uses embedded CSS
         )
 
-        css_file = _css_path()
-        if not css_file.exists():
-            raise RuntimeError(f"CSS bulunamadı: {css_file}")
-
+        # ✅ CSS dosyası yok: string'ten bas
         base_url = _project_root().resolve().as_uri() + "/"
         pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf(
-            stylesheets=[CSS(filename=str(css_file))]
+            stylesheets=[CSS(string=ASSESSMENT_RUN_SUMMARY_CSS)]
         )
 
         pdf_file.write_bytes(pdf_bytes)
