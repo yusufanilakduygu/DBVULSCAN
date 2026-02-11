@@ -2,7 +2,6 @@
 from flask import render_template, session, redirect, url_for, flash, request
 from db import get_db
 from . import jobs_bp
-import os
 
 
 def _require_admin():
@@ -91,70 +90,6 @@ def _build_full_cron_entry(schedule_5: str, job_parameter, settings: dict):
     return " ".join(p for p in parts if p)
 
 
-def _resolve_cron_file_path(cron_name_value: str) -> str:
-    """
-    settings.setting_key='cron_name' value:
-      - 'dbvulscan'   -> '/etc/cron.d/dbvulscan'
-      - '/etc/cron.d/dbvulscan' -> same
-      - 'relative/path' includes '/' -> treat as path as-is (but still returned)
-    """
-    v = (cron_name_value or "").strip()
-    if not v:
-        return ""
-
-    # absolute or contains a slash -> treat as path
-    if "/" in v:
-        return v
-
-    # only name -> default /etc/cron.d/<name>
-    return f"/etc/cron.d/{v}"
-
-
-def _sync_cron_file():
-    """
-    1) settings('cron_name') okunur ve cron file path resolve edilir
-    2) dosya komple sıfırlanır (yoksa oluşturulur)
-    3) jobs.is_active=1 olanların cron_entry satırları yeniden yazılır
-    """
-    settings = _get_settings_map()
-    cron_file = _resolve_cron_file_path(settings.get("cron_name", ""))
-
-    if not cron_file:
-        flash("Missing or empty setting: cron_name (cron file not updated).", "error")
-        return
-
-    con = get_db()
-    with con.cursor() as cur:
-        cur.execute(
-            """
-            SELECT cron_entry
-            FROM jobs
-            WHERE is_active = 1
-            ORDER BY job_id
-            """
-        )
-        rows = cur.fetchall()
-    con.close()
-
-    cron_dir = os.path.dirname(cron_file)
-    if cron_dir:
-        os.makedirs(cron_dir, exist_ok=True)
-
-    # Write fresh cron file
-    with open(cron_file, "w", encoding="utf-8") as f:
-        f.write("# DBVulScan cron file (auto-generated)\n")
-        for r in rows:
-            line = (r.get("cron_entry") or "").rstrip()
-            if line:
-                f.write(line + "\n")
-
-    try:
-        os.chmod(cron_file, 0o644)
-    except Exception:
-        # yetki yoksa chmod'u atla
-        pass
-
-
 def _load_job(job_id: int):
     con = get_db()
     with con.cursor() as cur:
@@ -162,6 +97,23 @@ def _load_job(job_id: int):
         row = cur.fetchone()
     con.close()
     return row
+
+
+def _load_domains_and_assessments():
+    """
+    Formda job_type'a göre dropdown doldurmak için:
+    - domains: domain_id, name
+    - assessments: assessment_id, name
+    """
+    con = get_db()
+    with con.cursor() as cur:
+        cur.execute("SELECT domain_id, name FROM domains ORDER BY name")
+        domains = cur.fetchall()
+
+        cur.execute("SELECT assessment_id, name FROM assessments ORDER BY name")
+        assessments = cur.fetchall()
+    con.close()
+    return domains, assessments
 
 
 @jobs_bp.route("/jobs")
@@ -172,7 +124,25 @@ def list_jobs():
 
     con = get_db()
     with con.cursor() as cur:
-        cur.execute("SELECT * FROM jobs ORDER BY job_id DESC")
+        cur.execute(
+            """
+            SELECT
+              j.*,
+              CASE
+                WHEN j.job_type='assessment_run' THEN a.name
+                WHEN j.job_type='domain_run' THEN d.name
+                ELSE NULL
+              END AS parameter_name
+            FROM jobs j
+            LEFT JOIN assessments a
+              ON j.job_type='assessment_run'
+             AND a.assessment_id = j.parameter
+            LEFT JOIN domains d
+              ON j.job_type='domain_run'
+             AND d.domain_id = j.parameter
+            ORDER BY j.job_id DESC
+            """
+        )
         jobs = cur.fetchall()
     con.close()
 
@@ -230,14 +200,19 @@ def new_job():
         con.commit()
         con.close()
 
-        # DB yazıldıktan sonra cron dosyasını yeniden üret
-        _sync_cron_file()
-
         flash("Job created.", "success")
         return redirect(url_for("jobs.edit_job", job_id=new_id))
 
     # NEW form açıldığında cron boş
-    return render_template("jobs/form.html", mode="new", job=None, cron_preview="")
+    domains, assessments = _load_domains_and_assessments()
+    return render_template(
+        "jobs/form.html",
+        mode="new",
+        job=None,
+        cron_preview="",
+        domains=domains,
+        assessments=assessments,
+    )
 
 
 @jobs_bp.route("/jobs/<int:job_id>/edit", methods=["GET", "POST"])
@@ -303,9 +278,6 @@ def edit_job(job_id):
         con.commit()
         con.close()
 
-        # DB yazıldıktan sonra cron dosyasını yeniden üret
-        _sync_cron_file()
-
         flash("Job updated.", "success")
         job = _load_job(job_id)
 
@@ -318,7 +290,15 @@ def edit_job(job_id):
     )
     preview = _build_full_cron_entry(schedule, job.get("parameter"), settings)
 
-    return render_template("jobs/form.html", mode="edit", job=job, cron_preview=preview)
+    domains, assessments = _load_domains_and_assessments()
+    return render_template(
+        "jobs/form.html",
+        mode="edit",
+        job=job,
+        cron_preview=preview,
+        domains=domains,
+        assessments=assessments,
+    )
 
 
 @jobs_bp.route("/jobs/<int:job_id>/delete", methods=["POST"])
@@ -332,8 +312,6 @@ def delete_job(job_id):
         cur.execute("DELETE FROM jobs WHERE job_id=%s", (job_id,))
     con.commit()
     con.close()
-
-    _sync_cron_file()
 
     flash("Job deleted.", "success")
     return redirect(url_for("jobs.list_jobs"))

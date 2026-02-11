@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block title %}{% if mode=='edit' %}Edit Email{% else %}New Email{% endif %} · DB Vulnerability Scan{% endblock %}
+{% block content %}
+<style>
+.wrapbox{background:#fff;border:1px solid #e5e9f2;border-radius:12px;}
+.head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e9f2;gap:10px;flex-wrap:wrap;}
+.title{font-weight:800;}
+.meta{font-size:12px;color:#64748b;}
+.body{padding:14px;}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field label{font-size:12px;color:#334155;font-weight:800;}
+.field input,.field textarea{
+  border:1px solid #e5e9f2;border-radius:10px;padding:9px 10px;font-size:13px;background:#fff;
+}
+textarea{min-height:76px;resize:vertical;}
+
+.actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 14px;
+  border-top:1px solid #e5e9f2;
+  flex-wrap:wrap;
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:9px 14px;border-radius:10px;text-decoration:none;font-weight:800;font-size:13px;
+  border:1px solid #e5e9f2;background:#fff;color:#0f172a;
+}
+.btn-primary{background:#2563eb;border-color:#1d4ed8;color:#fff;}
+.btn-primary:hover{background:#1d4ed8;}
+.btn:hover{background:#f8fafc;}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;}
+</style>
+
+<div class="wrapbox">
+  <div class="head">
+    <div>
+      <div class="title">{% if mode=='edit' %}Edit Email{% else %}New Email{% endif %}</div>
+      <div class="meta">
+        job_id: <span class="mono">{{ job_id }}</span>
+        {% if job_name %} · {{ job_name }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <form class="body" method="post">
+    <div class="grid">
+
+      <div class="field">
+        <label>Email</label>
+        <input name="email" value="{{ row.email if row else '' }}" required />
+      </div>
+
+      <div class="field">
+        <label>Note</label>
+        <textarea name="note">{{ row.note if row and row.note else '' }}</textarea>
+      </div>
+
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn" href="{{ url_for('jobs.email_list', job_id=job_id) }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

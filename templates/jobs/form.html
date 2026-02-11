@@ -27,7 +27,7 @@
     display:flex;
     gap:10px;
     align-items:center;
-    justify-content:space-between; /* solda Save, sağda Cancel */
+    justify-content:space-between;
     padding:12px 14px;
     border-top:1px solid #e5e9f2;
     flex-wrap:wrap;
@@ -61,28 +61,64 @@
   <form class="body" method="post">
     <div class="grid">
 
-      <!-- 1) Job Name (full width) -->
+      <!-- 1) Job Name -->
       <div class="field full">
         <label>Job Name</label>
         <input name="job_name" value="{{ job.job_name if job else '' }}" required />
       </div>
 
-      <!-- 2) Under Job Name: Job Type (left) + Job Parameter (right) -->
-      <div class="field">
+      <!-- 2) Job Type -->
+      <div class="field full">
         <label>Job Type</label>
-        <select name="job_type" required>
-          {% set v = job.job_type if job else '' %}
+        <select id="job_type" name="job_type" required>
+          {% set v = job.job_type if job else 'assessment_run' %}
           <option value="assessment_run" {% if v=='assessment_run' %}selected{% endif %}>assessment_run</option>
           <option value="domain_run" {% if v=='domain_run' %}selected{% endif %}>domain_run</option>
         </select>
       </div>
 
-      <div class="field">
-        <label>Job Parameter</label>
-        <input name="parameter" type="number" value="{{ job.parameter if job else 0 }}" required />
+      <!-- Hidden: DB'ye kaydedilecek parameter (assessment_id / domain_id) -->
+      <input type="hidden" name="parameter" id="parameter_hidden"
+             value="{{ job.parameter if job else 0 }}"/>
+
+      <!-- Assessment selector -->
+      <div class="field full" id="field-parameter-assessment">
+        <label>Assessment Name</label>
+        <select id="parameter_assessment">
+          {% set curp = job.parameter if job else 0 %}
+          <option value="0"></option>
+          {% for a in assessments %}
+            <option value="{{ a.assessment_id }}"
+              {% if job and job.job_type=='assessment_run' and curp==a.assessment_id %}selected{% endif %}>
+              {{ a.name }}
+            </option>
+          {% endfor %}
+        </select>
       </div>
 
-      <!-- 3) Job Period (full width) -->
+      <!-- Domain selector -->
+      <div class="field full hidden" id="field-parameter-domain">
+        <label>Domain Name</label>
+        <select id="parameter_domain">
+          {% set curp = job.parameter if job else 0 %}
+          <option value="0"></option>
+          {% for d in domains %}
+            <option value="{{ d.domain_id }}"
+              {% if job and job.job_type=='domain_run' and curp==d.domain_id %}selected{% endif %}>
+              {{ d.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Visible-only: Job Parameter (ID) should appear under the selected name -->
+      <div class="field full">
+        <label>Job Parameter (ID)</label>
+        <input id="parameter_visible" class="mono" value="{{ job.parameter if job else 0 }}" readonly />
+        <div class="meta">Bu alan sadece görüntü amaçlıdır. ID otomatik seçime göre güncellenir.</div>
+      </div>
+
+      <!-- 3) Job Period -->
       <div class="field full">
         <label>Job Period</label>
         <select id="job_period" name="job_period" required>
@@ -210,10 +246,73 @@
     }
   }
 
+  function _setParameter(val){
+    const hidden = document.getElementById("parameter_hidden");
+    const visible = document.getElementById("parameter_visible");
+    const v = (val === undefined || val === null || val === "") ? "0" : String(val);
+    if (hidden) hidden.value = v;
+    if (visible) visible.value = v;
+  }
+
+  function applyJobTypeRules(){
+    const jtEl = document.getElementById("job_type");
+    const jt = jtEl ? jtEl.value : "assessment_run";
+
+    const fieldA = document.getElementById("field-parameter-assessment");
+    const fieldD = document.getElementById("field-parameter-domain");
+
+    const selA = document.getElementById("parameter_assessment");
+    const selD = document.getElementById("parameter_domain");
+
+    if (fieldA) fieldA.classList.add("hidden");
+    if (fieldD) fieldD.classList.add("hidden");
+
+    if (jt === "domain_run"){
+      if (fieldD) fieldD.classList.remove("hidden");
+      const val = selD ? (selD.value || "0") : "0";
+      _setParameter(val);
+      if (selA) selA.value = "0";
+    } else {
+      if (fieldA) fieldA.classList.remove("hidden");
+      const val = selA ? (selA.value || "0") : "0";
+      _setParameter(val);
+      if (selD) selD.value = "0";
+    }
+  }
+
+  function bindParameterEvents(){
+    const selA = document.getElementById("parameter_assessment");
+    const selD = document.getElementById("parameter_domain");
+    const jtEl = document.getElementById("job_type");
+
+    if (selA){
+      selA.addEventListener("change", function(){
+        const jt = jtEl ? jtEl.value : "assessment_run";
+        if (jt === "assessment_run") _setParameter(selA.value || "0");
+      });
+    }
+    if (selD){
+      selD.addEventListener("change", function(){
+        const jt = jtEl ? jtEl.value : "assessment_run";
+        if (jt === "domain_run") _setParameter(selD.value || "0");
+      });
+    }
+    if (jtEl){
+      jtEl.addEventListener("change", applyJobTypeRules);
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", function(){
     const p = document.getElementById("job_period");
     if (p) p.addEventListener("change", applyPeriodRules);
     applyPeriodRules();
+
+    bindParameterEvents();
+    applyJobTypeRules();
+
+    // İlk load'da görünür ID alanını hidden ile senkronla
+    const hidden = document.getElementById("parameter_hidden");
+    if (hidden) _setParameter(hidden.value || "0");
   });
 </script>
 {% endblock %}

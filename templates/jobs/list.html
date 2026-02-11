@@ -8,7 +8,8 @@
 .ds-meta{font-size:12px;color:#64748b;}
 .ds-actions{display:flex;gap:8px;align-items:center;}
 
-.ds-table{width:100%;border-collapse:collapse;}
+/* IMPORTANT: fixed layout so widths below are respected */
+.ds-table{width:100%;border-collapse:collapse;table-layout:fixed;}
 .ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
 .ds-table thead th{background:#f8fafc;color:#0f172a;font-weight:700;border-top:none;}
 
@@ -28,6 +29,21 @@
 
 .joblink{color:#2563eb;text-decoration:underline;font-weight:700;}
 
+/* Job Name should not expand too much */
+.jobcell{overflow:hidden;}
+.jobcell .joblink{
+  display:block;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+
+/* Param can be wider and wrap if needed */
+.paramcell{
+  white-space:normal;
+  word-break:break-word;
+}
+
 /* NEW RECORD (+) button */
 .new-btn{
   display:inline-flex;
@@ -45,6 +61,18 @@
   line-height:1;
 }
 .new-btn:hover{background:#1d4ed8;}
+
+/* delete form/button reset (so it looks like icon-btn) */
+.icon-form{display:inline;}
+.icon-form button{
+  all: unset;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;border-radius:8px;
+  border:1px solid #e5e9f2;background:#fff;text-decoration:none;
+  cursor:pointer;
+}
+.icon-form button:hover{background:#f8fafc;}
+.icon-form button svg{width:16px;height:16px;stroke:#0f172a;}
 </style>
 
 <div class="ds-wrap">
@@ -65,16 +93,22 @@
   <table class="ds-table">
     <thead>
       <tr>
-        <th style="width:80px;">ID</th>
-        <th>Job Name</th>
-        <th style="width:140px;">Type</th>
-        <th style="width:110px;">Param</th>
-        <th style="width:110px;">Period</th>
-        <th style="width:80px;">Hour</th>
-        <th style="width:120px;">Weekday</th>
-        <th style="width:110px;">Monthday</th>
-        <th style="width:110px;">Send Mail</th>
-        <th style="width:90px;">Active</th>
+        <th style="width:70px;">ID</th>
+        <!-- Job name fixed so it doesn't push others -->
+        <th style="width:260px;">Job Name</th>
+
+        <!-- Type pulled to the left: smaller width -->
+        <th style="width:120px;">Type</th>
+
+        <!-- Param wider -->
+        <th style="width:280px;">Param</th>
+
+        <th style="width:90px;">Period</th>
+        <th style="width:70px;">Hour</th>
+        <th style="width:100px;">Weekday</th>
+        <th style="width:90px;">Monthday</th>
+        <th style="width:95px;">Send Mail</th>
+        <th style="width:80px;">Active</th>
         <th style="width:140px;">Actions</th>
       </tr>
     </thead>
@@ -83,17 +117,27 @@
       <tr>
         <td class="mono">{{ j.job_id }}</td>
 
-        <td>
-          <a class="joblink" href="{{ url_for('jobs.edit_job', job_id=j.job_id) }}">
+        <td class="jobcell">
+          <a class="joblink" href="{{ url_for('jobs.edit_job', job_id=j.job_id) }}" title="{{ j.job_name }}">
             {{ j.job_name }}
           </a>
           {% if j.note %}
-            <div class="ds-meta" style="margin-top:3px;">{{ j.note }}</div>
+            <div class="ds-meta" style="margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ j.note }}">
+              {{ j.note }}
+            </div>
           {% endif %}
         </td>
 
         <td><span class="badge">{{ j.job_type }}</span></td>
-        <td class="mono">{{ j.parameter }}</td>
+
+        <td class="paramcell">
+          {% if j.parameter_name %}
+            {{ j.parameter_name }}
+          {% else %}
+            <span class="mono">{{ j.parameter }}</span>
+          {% endif %}
+        </td>
+
         <td><span class="badge">{{ j.job_period }}</span></td>
         <td class="mono">{{ j.hour_parameter }}</td>
         <td class="mono">{{ j.weekday_parameter or '' }}</td>
@@ -118,7 +162,7 @@
         <td>
           <div class="actions">
             <!-- 1) email list -->
-            <a class="icon-btn" href="#" onclick="return false;" title="Email list (not implemented)">
+            <a class="icon-btn" href="{{ url_for('jobs.email_list', job_id=j.job_id) }}" title="Email list">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
                 <path d="M4 6h16v12H4z"></path>
                 <path d="M4 7l8 6 8-6"></path>
@@ -137,16 +181,21 @@
               </svg>
             </a>
 
-            <!-- 3) delete -->
-            <a class="icon-btn" href="#" onclick="return false;" title="Delete (not implemented)">
-              <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
-                <path d="M3 6h18"></path>
-                <path d="M8 6V4h8v2"></path>
-                <path d="M6 6l1 16h10l1-16"></path>
-                <path d="M10 11v6"></path>
-                <path d="M14 11v6"></path>
-              </svg>
-            </a>
+            <!-- 3) delete (POST) -->
+            <form class="icon-form"
+                  method="post"
+                  action="{{ url_for('jobs.delete_job', job_id=j.job_id) }}"
+                  onsubmit="return confirm('Delete job #{{ j.job_id }} ({{ j.job_name|e }}) ?');">
+              <button type="submit" title="Delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                  <path d="M3 6h18"></path>
+                  <path d="M8 6V4h8v2"></path>
+                  <path d="M6 6l1 16h10l1-16"></path>
+                  <path d="M10 11v6"></path>
+                  <path d="M14 11v6"></path>
+                </svg>
+              </button>
+            </form>
           </div>
         </td>
       </tr>
