@@ -74,19 +74,24 @@ def _generate_schedule(job_period, hour, weekday, monthday):
     return f"{mm} {hh} {dom} {mon} {dow}"
 
 
-def _build_full_cron_entry(schedule_5: str, job_parameter, settings: dict):
-    parts = [
-        schedule_5,
-        settings.get("cron_user", ""),
-        f"KRB5_CONFIG={settings.get('krb5_config_path','')}",
-        settings.get("python_full_path", ""),
-        settings.get("run_job_path", ""),
-        "--job-id",
-        str(job_parameter),
-        ">>",
-        settings.get("cron_log_path", ""),
-        "2>&1",
-    ]
+def _build_full_cron_entry(schedule_5: str, job_id: int, settings: dict):
+    """
+    Yeni cron formatı:
+    {cron_expression} {cron_user} cd {project_root} && {python_full_path} -m jobs.run_job {job_id} --quiet >> {report_dir}/logs/job_{job_id}.log 2>&1
+    """
+
+    cron_user = (settings.get("cron_user") or "").strip()
+    project_root = (settings.get("project_root") or "").strip()
+    python_full_path = (settings.get("python_full_path") or "").strip()
+    report_dir = (settings.get("report_dir") or "").strip()
+
+    # Komutun sabit kısmı
+    cmd = (
+        f"cd {project_root} && {python_full_path} -m jobs.run_job {job_id} --quiet "
+        f">> {report_dir}/logs/job_{job_id}.log 2>&1"
+    ).strip()
+
+    parts = [schedule_5, cron_user, cmd]
     return " ".join(p for p in parts if p)
 
 
@@ -169,9 +174,6 @@ def new_job():
             f.get("monthday_parameter"),
         )
 
-        # Save sırasında her zaman üret (is_active üretimi etkilemez)
-        cron_entry = _build_full_cron_entry(schedule, parameter, settings)
-
         con = get_db()
         with con.cursor() as cur:
             cur.execute(
@@ -193,10 +195,17 @@ def new_job():
                     1 if f.get("send_mail") else 0,
                     is_active,
                     f.get("note"),
-                    cron_entry,
+                    "",  # job_id INSERT sonrası oluşacağı için cron_entry sonra güncellenir
                 ),
             )
             new_id = cur.lastrowid
+
+            # Save sırasında her zaman üret (is_active üretimi etkilemez)
+            cron_entry = _build_full_cron_entry(schedule, new_id, settings)
+            cur.execute(
+                "UPDATE jobs SET cron_entry=%s WHERE job_id=%s",
+                (cron_entry, new_id),
+            )
         con.commit()
         con.close()
 
@@ -240,7 +249,7 @@ def edit_job(job_id):
             f.get("monthday_parameter"),
         )
 
-        cron_entry = _build_full_cron_entry(schedule, parameter, settings)
+        cron_entry = _build_full_cron_entry(schedule, job_id, settings)
 
         con = get_db()
         with con.cursor() as cur:
@@ -288,7 +297,7 @@ def edit_job(job_id):
         job.get("weekday_parameter"),
         job.get("monthday_parameter"),
     )
-    preview = _build_full_cron_entry(schedule, job.get("parameter"), settings)
+    preview = _build_full_cron_entry(schedule, job_id, settings)
 
     domains, assessments = _load_domains_and_assessments()
     return render_template(
