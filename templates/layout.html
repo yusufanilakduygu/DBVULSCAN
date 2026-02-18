@@ -207,13 +207,15 @@
                  class="{% if request.path.startswith('/assessment-results') %}active{% endif %}">
                 Assessment Results
               </a>
-              <a href="/change-reports"
-                 class="{% if request.path.startswith('/change-reports') %}active{% endif %}">
-                Change Reports
+
+              <a href="/ai-reports"
+                 class="{% if request.path.startswith('/ai-reports') or request.path.startswith('/change-reports') %}active{% endif %}">
+                AI Reports
               </a>
-              <a href="/graphic-analysis"
-                 class="{% if request.path.startswith('/graphic-analysis') %}active{% endif %}">
-                Grafic Analysis
+
+              <a href="/analysis-reports"
+                 class="{% if request.path.startswith('/analysis-reports') or request.path.startswith('/graphic-analysis') %}active{% endif %}">
+                Analysis &amp; Reports
               </a>
             </div>
           </div>
