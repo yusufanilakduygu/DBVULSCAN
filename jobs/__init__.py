@@ -5,3 +5,4 @@ jobs_bp = Blueprint("jobs", __name__, template_folder="../templates/jobs")
 
 from . import routes  # noqa: E402,F401
 from . import routes_email  # noqa: E402,F401
+from . import routes_job_run_list  # noqa: E402,F401

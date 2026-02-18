@@ -8,6 +8,22 @@
 .ds-meta{font-size:12px;color:#64748b;}
 .ds-actions{display:flex;gap:8px;align-items:center;}
 
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height:38px;
+  padding:0 12px;
+  border-radius:10px;
+  border:1px solid #e5e9f2;
+  background:#fff;
+  color:#0f172a;
+  text-decoration:none;
+  font-weight:700;
+}
+.btn:hover{background:#f8fafc;}
+.btn svg{width:16px;height:16px;margin-right:8px;stroke:#0f172a;}
+
 /* IMPORTANT: fixed layout so widths below are respected */
 .ds-table{width:100%;border-collapse:collapse;table-layout:fixed;}
 .ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
@@ -83,6 +99,19 @@
     </div>
 
     <div class="ds-actions">
+      <!-- Global Job Run List -->
+      <a href="{{ url_for('jobs.job_run_list') }}" class="btn" title="Show Job Run list">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+          <path d="M8 6h13"></path>
+          <path d="M8 12h13"></path>
+          <path d="M8 18h13"></path>
+          <path d="M3 6h.01"></path>
+          <path d="M3 12h.01"></path>
+          <path d="M3 18h.01"></path>
+        </svg>
+        Show Job Run List
+      </a>
+
       <!-- New Record -->
       <a href="{{ url_for('jobs.new_job') }}"
          class="new-btn"
@@ -169,8 +198,8 @@
               </svg>
             </a>
 
-            <!-- 2) run list -->
-            <a class="icon-btn" href="#" onclick="return false;" title="Run list (not implemented)">
+            <!-- 2) run list (this job only) -->
+            <a class="icon-btn" href="{{ url_for('jobs.job_run_list', job_id=j.job_id) }}" title="Show this Job's Run list">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
                 <path d="M8 6h13"></path>
                 <path d="M8 12h13"></path>

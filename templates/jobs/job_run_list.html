@@ -1,0 +1,171 @@
+{% extends "layout.html" %}
+{% block title %}Job Runs · DB Vulnerability Scan{% endblock %}
+{% block content %}
+<style>
+.ds-wrap{background:#fff;border:1px solid #e5e9f2;border-radius:12px;}
+.ds-head{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 14px;border-bottom:1px solid #e5e9f2;flex-wrap:wrap;gap:10px;}
+.ds-title{font-weight:800;}
+.ds-meta{font-size:12px;color:#64748b;}
+.ds-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+.ds-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+.ds-table th,.ds-table td{padding:10px 12px;border-top:1px solid #eef2f7;text-align:left;vertical-align:middle;}
+.ds-table thead th{background:#f8fafc;color:#0f172a;font-weight:700;border-top:none;}
+
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;}
+.badge{display:inline-block;padding:3px 8px;border:1px solid #e5e9f2;border-radius:999px;background:#fff;font-size:12px;color:#0f172a;}
+.badge-started{border-color:#fde68a;background:#fffbeb;color:#92400e;}
+.badge-success{border-color:#86efac;background:#ecfdf5;color:#065f46;}
+.badge-error{border-color:#fecaca;background:#fef2f2;color:#7f1d1d;}
+
+.jobname{font-weight:800;color:#0f172a;text-decoration:none;}
+.jobname:hover{text-decoration:underline;color:#2563eb;}
+.runlink{color:#2563eb;text-decoration:underline;font-weight:700;}
+
+.filter-wrap{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg label{font-size:12px;color:#64748b;}
+.fg input,.fg select{
+  height:34px;border:1px solid #e5e9f2;border-radius:8px;padding:0 10px;
+  background:#fff;color:#0f172a;min-width:160px;
+}
+.btn{
+  height:34px;border-radius:8px;padding:0 12px;border:1px solid #e5e9f2;background:#fff;
+  text-decoration:none;color:#0f172a;display:inline-flex;align-items:center;justify-content:center;
+}
+.btn:hover{background:#f8fafc;}
+.btn-primary{background:#2563eb;border-color:#1d4ed8;color:#fff;}
+.btn-primary:hover{background:#1d4ed8;}
+.pager{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.pager .btn{min-width:90px;}
+</style>
+
+<div class="ds-wrap">
+  <div class="ds-head">
+    <div>
+      <div class="ds-title">Job Run List</div>
+      <div class="ds-meta">
+        Page <span class="mono">{{ page }}</span> /
+        <span class="mono">{{ total_pages }}</span>
+        · Showing <span class="mono">{{ start_no }}</span>-<span class="mono">{{ end_no }}</span>
+        of <span class="mono">{{ total }}</span>
+      </div>
+    </div>
+
+    <div class="ds-actions">
+      <a class="btn" href="{{ url_for('jobs.list_jobs') }}">Back to Jobs</a>
+    </div>
+  </div>
+
+  <div style="padding:12px 14px;border-bottom:1px solid #e5e9f2;">
+    <form method="get" class="filter-wrap">
+      <div class="fg">
+        <label>Start Date</label>
+        <input type="date" name="start_date" value="{{ filters.start_date }}">
+      </div>
+
+      <div class="fg">
+        <label>End Date</label>
+        <input type="date" name="end_date" value="{{ filters.end_date }}">
+      </div>
+
+      <div class="fg">
+        <label>Job Name</label>
+        <input type="text" name="job_name" value="{{ filters.job_name }}" placeholder="contains...">
+      </div>
+
+      <div class="fg">
+        <label>Status</label>
+        <select name="status">
+          <option value="" {% if not filters.status %}selected{% endif %}>All</option>
+          <option value="started" {% if filters.status=='started' %}selected{% endif %}>started</option>
+          <option value="success" {% if filters.status=='success' %}selected{% endif %}>success</option>
+          <option value="error" {% if filters.status=='error' %}selected{% endif %}>error</option>
+        </select>
+      </div>
+
+      <div class="fg" style="min-width:0;">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" type="submit">Search</button>
+      </div>
+
+      <div class="fg" style="min-width:0;">
+        <label>&nbsp;</label>
+        <a class="btn" href="{{ url_for('jobs.job_run_list') }}">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <table class="ds-table">
+    <thead>
+      <tr>
+        <th style="width:110px;">Run ID</th>
+        <th style="width:80px;">Job ID</th>
+        <th style="width:260px;">Job Name</th>
+        <th style="width:170px;">Started</th>
+        <th style="width:170px;">Finished</th>
+        <th style="width:110px;">Status</th>
+        <th style="width:110px;">Detail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="mono">{{ r.job_run_id }}</td>
+        <td class="mono">{{ r.job_id }}</td>
+        <td>
+          <span class="jobname">{{ r.job_name }}</span>
+        </td>
+        <td class="mono">{{ r.started_at }}</td>
+        <td class="mono">{{ r.finished_at or '' }}</td>
+        <td>
+          {% if r.status == 'success' %}
+            <span class="badge badge-success">success</span>
+          {% elif r.status == 'error' %}
+            <span class="badge badge-error">error</span>
+          {% else %}
+            <span class="badge badge-started">started</span>
+          {% endif %}
+        </td>
+        <td>
+          <a class="runlink" href="{{ url_for('jobs.job_run_detail', job_run_id=r.job_run_id) }}">Open</a>
+        </td>
+      </tr>
+      {% endfor %}
+
+      {% if not rows %}
+      <tr>
+        <td colspan="7" class="ds-meta">No job runs found.</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <div style="padding:12px 14px;border-top:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+    <div class="ds-meta">
+      Max 10 rows per page.
+    </div>
+
+    <div class="pager">
+      {% set args = request.args.to_dict() %}
+      {% if page > 1 %}
+        {% set args_prev = args.copy() %}
+        {% set _ = args_prev.update({'page': page-1}) %}
+        <a class="btn" href="{{ url_for('jobs.job_run_list', **args_prev) }}">Prev</a>
+      {% else %}
+        <span class="btn" style="opacity:.5;pointer-events:none;">Prev</span>
+      {% endif %}
+
+      <span class="mono">Page {{ page }} / {{ total_pages }}</span>
+
+      {% if page < total_pages %}
+        {% set args_next = args.copy() %}
+        {% set _ = args_next.update({'page': page+1}) %}
+        <a class="btn" href="{{ url_for('jobs.job_run_list', **args_next) }}">Next</a>
+      {% else %}
+        <span class="btn" style="opacity:.5;pointer-events:none;">Next</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
