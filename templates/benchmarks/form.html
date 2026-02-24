@@ -1,3 +1,4 @@
+<!-- form.html -->
 {% extends "layout.html" %}
 {% block title %}
   {% if is_new %}New Benchmark{% else %}Edit Benchmark{% endif %} · DB Vulnerability Scan
@@ -162,6 +163,11 @@ textarea{min-height:90px;}
 
     <div class="form-buttons">
       <button type="submit" id="saveBtn" class="btn-std btn-save">{% if is_new %}Create{% else %}Save{% endif %}</button>
+      {% if not is_new %}
+        <a href="{{ url_for('benchmarks.clone_benchmark', benchmark_id=bm.benchmark_id) }}" class="btn-std">
+          Clone
+        </a>
+      {% endif %}
       <a href="{{ url_for('benchmarks.list_benchmarks') }}" class="btn-std btn-back">Back to Benchmarks</a>
     </div>
   </form>

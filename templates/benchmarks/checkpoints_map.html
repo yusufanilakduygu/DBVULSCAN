@@ -1,3 +1,4 @@
+<!-- checkpoints_map.html -->
 {% extends "layout.html" %}
 {% block title %}Benchmark Checkpoints · DB Vulnerability Scan{% endblock %}
 
@@ -218,7 +219,7 @@
   <!-- BELOW: selection UI -->
   <div class="bcm-content">
 
-    <!-- filter form -->
+    <!-- filter form (category/severity only; name search is client-side) -->
     <form id="filterForm" method="get"
           action="{{ url_for('benchmarks.edit_benchmark_checkpoints', benchmark_id=bm.benchmark_id) }}"></form>
 
@@ -232,11 +233,10 @@
           <h4>All Checkpoints (Available)</h4>
 
           <div class="bcm-filters">
-            <input form="filterForm"
+            <input id="availableSearch"
                    type="text"
-                   name="q"
-                   placeholder="Search (name)..."
-                   value="{{ search or '' }}">
+                   placeholder="Search (name) in Available..."
+                   autocomplete="off">
 
             <select form="filterForm" name="category"
                     onchange="document.getElementById('filterForm').submit()">
@@ -302,15 +302,37 @@
 </div>
 
 <script>
+  function filterAvailableOptions(){
+    const q = (document.getElementById('availableSearch').value || '').toLowerCase().trim();
+    const available = document.getElementById('available');
+    Array.from(available.options).forEach(opt => {
+      if(!q){
+        opt.hidden = false;
+        return;
+      }
+      const text = (opt.text || '').toLowerCase();
+      opt.hidden = !text.includes(q);
+    });
+  }
+
   function moveSelected(fromId, toId){
     const from = document.getElementById(fromId);
     const to = document.getElementById(toId);
     const moving = Array.from(from.options).filter(o => o.selected);
     moving.forEach(opt => {
       opt.selected = false;
+      // If it was hidden due to search filter, unhide when moving.
+      opt.hidden = false;
       to.add(opt);
     });
+
+    // After moving items out of Available, re-apply filter to remaining list.
+    if(fromId === 'available'){
+      filterAvailableOptions();
+    }
   }
+
+  document.getElementById('availableSearch').addEventListener('input', filterAvailableOptions);
 
   document.getElementById('saveForm').addEventListener('submit', function(){
     Array.from(document.getElementById('selected').options)

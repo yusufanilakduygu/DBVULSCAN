@@ -1,0 +1,57 @@
+<!-- benchmarkclone.html -->
+{% extends "layout.html" %}
+{% block title %}Clone Benchmark · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+  .clone-wrap{background:#fff;padding:20px;border:1px solid #e6e6e6;border-radius:12px;max-width:900px;margin:auto;}
+  .clone-title{font-weight:900;margin:0 0 16px 0;font-size:20px;}
+  .clone-meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+  .clone-chip{display:inline-block;padding:4px 10px;border:1px solid #e5e9f2;border-radius:999px;background:#fff;font-size:12px;}
+  .clone-row{display:flex;gap:16px;margin-bottom:16px;}
+  .clone-col{flex:1;}
+  label{font-size:14px;font-weight:600;display:block;margin-bottom:4px;}
+  input[type="text"]{width:100%;padding:8px 10px;border:1px solid #d9d9d9;border-radius:8px;font-size:14px;}
+  .clone-help{color:#6b7280;font-size:12px;margin-top:6px;}
+  .clone-actions{margin-top:22px;display:flex;justify-content:center;gap:14px;flex-wrap:wrap;}
+  .btn-std{padding:10px 26px;border-radius:8px;border:1px solid #dcdcdc;background:#fff;cursor:pointer;font-size:15px;text-decoration:none;text-align:center;}
+  .btn-primary{background:#2563eb;color:#fff;border-color:#1d4ed8;font-weight:800;}
+  .btn-primary:hover{background:#1d4ed8;}
+  .btn-std:hover{background:#f8fafc;}
+</style>
+
+<div class="clone-wrap">
+  <div class="clone-title">Clone Benchmark</div>
+
+  <div class="clone-meta">
+    <span class="clone-chip">Source: {{ src.code }}</span>
+    <span class="clone-chip">{{ src.name }}</span>
+    <span class="clone-chip">{{ (src.db_type or '')|lower }}</span>
+    <span class="clone-chip">Level {{ src.level }}</span>
+    <span class="clone-chip">{{ src.status }}</span>
+  </div>
+
+  <form method="post" action="{{ url_for('benchmarks.clone_benchmark', benchmark_id=src.benchmark_id) }}">
+
+    <div class="clone-row">
+      <div class="clone-col">
+        <label>New Code *</label>
+        <input type="text" name="code" value="{{ (form.code if form is defined else '') or '' }}" placeholder="e.g. ORA-CIS-19C-CLONE">
+        <div class="clone-help">Must be unique (benchmarks.code is UNIQUE).</div>
+      </div>
+
+      <div class="clone-col">
+        <label>New Name *</label>
+        <input type="text" name="name" value="{{ (form.name if form is defined else '') or '' }}" placeholder="e.g. Oracle CIS 19c (Clone)">
+        <div class="clone-help">Only Code and Name will be different; all other fields and mapped checkpoints will be copied.</div>
+      </div>
+    </div>
+
+    <div class="clone-actions">
+      <button type="submit" class="btn-std btn-primary">Create Clone</button>
+      <a class="btn-std" href="{{ url_for('benchmarks.edit_benchmark', benchmark_id=src.benchmark_id) }}">Cancel</a>
+      <a class="btn-std" href="{{ url_for('benchmarks.list_benchmarks') }}">Back to Benchmarks</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

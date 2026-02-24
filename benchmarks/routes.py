@@ -1,3 +1,4 @@
+# routes.py
 # -*- coding: utf-8 -*-
 from flask import render_template, request, redirect, url_for, flash, session
 from . import benchmarks_bp
@@ -274,6 +275,101 @@ def edit_benchmark(benchmark_id):
 
 
 # =========================================================
+# Benchmark Clone
+# =========================================================
+
+
+@benchmarks_bp.route("/<int:benchmark_id>/clone", methods=["GET", "POST"])
+@login_required
+def clone_benchmark(benchmark_id):
+    """Clone an existing benchmark.
+
+    Creates a new benchmark with a different code & name, and copies mapped checkpoints.
+    """
+    db = get_db()
+    cur = db.cursor()
+
+    # Load source benchmark
+    cur.execute("SELECT * FROM benchmarks WHERE benchmark_id=%s", (benchmark_id,))
+    src = cur.fetchone()
+    if not src:
+        flash("Benchmark not found.", "danger")
+        return redirect(url_for("benchmarks.list_benchmarks"))
+
+    if request.method == "POST":
+        new_code = (request.form.get("code") or "").strip()
+        new_name = (request.form.get("name") or "").strip()
+
+        if not new_code or not new_name:
+            flash("New Code and New Name are required.", "warning")
+            return render_template(
+                "benchmarks/benchmarkclone.html",
+                src=src,
+                form={"code": new_code, "name": new_name},
+            )
+
+        try:
+            # Transaction: create benchmark + copy mappings
+            try:
+                db.begin()
+            except Exception:
+                # Some connection wrappers don't expose begin(); proceed and rely on rollback/commit.
+                pass
+
+            cur.execute(
+                "INSERT INTO benchmarks (code, name, db_type, version, level, status, description, notes) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                (
+                    new_code,
+                    new_name,
+                    src.get("db_type") if isinstance(src, dict) else src["db_type"],
+                    src.get("version") if isinstance(src, dict) else src["version"],
+                    src.get("level") if isinstance(src, dict) else src["level"],
+                    src.get("status") if isinstance(src, dict) else src["status"],
+                    src.get("description") if isinstance(src, dict) else src["description"],
+                    src.get("notes") if isinstance(src, dict) else src["notes"],
+                ),
+            )
+            new_id = cur.lastrowid
+
+            # Copy checkpoint mappings (same sort_order + notes)
+            cur.execute(
+                "INSERT INTO benchmark_checkpoints (benchmark_id, checkpoint_id, sort_order, notes, added_at) "
+                "SELECT %s, checkpoint_id, sort_order, notes, NOW() "
+                "FROM benchmark_checkpoints "
+                "WHERE benchmark_id=%s "
+                "ORDER BY sort_order ASC, checkpoint_id ASC",
+                (new_id, benchmark_id),
+            )
+
+            db.commit()
+            flash("Benchmark cloned.", "success")
+            return redirect(url_for("benchmarks.edit_benchmark", benchmark_id=new_id))
+        except Exception as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            msg = str(e)
+            if "Duplicate" in msg or "duplicate" in msg:
+                flash("Benchmark code already exists. Please choose a unique code.", "danger")
+            else:
+                flash(f"Clone failed: {msg}", "danger")
+            return render_template(
+                "benchmarks/benchmarkclone.html",
+                src=src,
+                form={"code": new_code, "name": new_name},
+            )
+
+    # GET
+    return render_template(
+        "benchmarks/benchmarkclone.html",
+        src=src,
+        form={"code": "", "name": ""},
+    )
+
+
+# =========================================================
 # ✅ NEW: Category x Severity Distribution (Matrix)
 # =========================================================
 @benchmarks_bp.route("/<int:benchmark_id>/category_severity_dist", methods=["GET"])
@@ -417,19 +513,15 @@ def edit_benchmark_checkpoints(benchmark_id):
         flash("Benchmark not found.", "danger")
         return redirect(url_for("benchmarks.list_benchmarks"))
 
-    # Persist search/filter in session
+    # Persist filters in session
     if request.args.get("reset") == "1":
-        session.pop("bmcp_search", None)
         session.pop("bmcp_category", None)
         session.pop("bmcp_severity", None)
         return redirect(url_for("benchmarks.edit_benchmark_checkpoints", benchmark_id=benchmark_id))
 
-    q_param = request.args.get("q")
-    if q_param is not None:
-        search = (q_param or "").strip()
-        session["bmcp_search"] = search
-    else:
-        search = (session.get("bmcp_search") or "").strip()
+    # NOTE: Name search is intentionally client-side only (Available list).
+    # We keep it out of server-side filtering so the Selected list never changes
+    # during typing/searching.
 
     if "category" in request.args:
         f_category = (request.args.get("category") or "").strip().upper()
@@ -463,7 +555,6 @@ def edit_benchmark_checkpoints(benchmark_id):
                 seen.add(cid)
                 selected_ids.append(cid)
 
-        # (Optional) db_type validation can stay as-is in your project
         try:
             cur.execute("DELETE FROM benchmark_checkpoints WHERE benchmark_id=%s", (benchmark_id,))
 
@@ -496,11 +587,6 @@ def edit_benchmark_checkpoints(benchmark_id):
     where = ["c.DB_Type=%s"]
     params = [bm.get("db_type") if isinstance(bm, dict) else bm["db_type"]]
 
-    if search:
-        where.append("(c.Name LIKE %s OR c.Id LIKE %s)")
-        like = f"%{search}%"
-        params.extend([like, like])
-
     if f_category:
         where.append("c.Category=%s")
         params.append(f_category)
@@ -529,7 +615,6 @@ def edit_benchmark_checkpoints(benchmark_id):
         bm=bm,
         available=available,
         selected=selected,
-        search=search,
         f_category=f_category,
         f_severity=f_severity,
     )
