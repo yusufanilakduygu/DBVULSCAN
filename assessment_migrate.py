@@ -12,7 +12,7 @@ HEDEF:
 - assessment_run_checkpoints
 - assessment_run_metrics
 - assessment_run_category_metrics
-- assessments.last_run_id güncelle
+- assessments.last_run_id güncelle (EN SONDA tarihe göre düzeltme yapılır)
 
 KURALLAR (kullanıcı onaylı):
 - TEST_DESCRIPTION == checkpoints.Name (birebir)
@@ -20,8 +20,6 @@ KURALLAR (kullanıcı onaylı):
 - RESULT_DETAILS: sadece fail'de evidence_text'e yazılacak
 - executed_at = assessment_migrate.EXECUTION_DATE
 - Aynı (assessment, date) varsa SKIP
-
-Not: get_db() autocommit=True (db.py), yine de bazı ara commit’ler opsiyonel.
 """
 
 from __future__ import annotations
@@ -35,20 +33,9 @@ from db import get_db
 # -----------------------------
 # CONSTANTS
 # -----------------------------
-SEVERITY_WEIGHT = {
-    "caution": 1,
-    "minor": 2,
-    "major": 3,
-    "critical": 4,
-}
+SEVERITY_WEIGHT = {"caution": 1, "minor": 2, "major": 3, "critical": 4}
 
-ASSET_IMPACT_WEIGHT = {
-    "very_low": 1,
-    "low": 2,
-    "medium": 3,
-    "high": 4,
-    "critical": 5,
-}
+ASSET_IMPACT_WEIGHT = {"very_low": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}
 
 MAX_ASSET_IMPACT = 5
 MAX_EVIDENCE_CHARS = 200_000
@@ -120,8 +107,7 @@ def calculate_metrics(rows: List[Dict[str, Any]], asset_impact_value: int) -> Di
         w = SEVERITY_WEIGHT.get(sev, 3)
         severity_sum += w
 
-        # pass => 0, fail/error => 1
-        score = 0 if r["test_result"] == "pass" else 1
+        score = 0 if r["test_result"] == "pass" else 1  # pass=0, fail/error=1
         failed_severity_sum += w * score
 
     risk = (failed_severity_sum * 100.0 / severity_sum) if severity_sum else 0.0
@@ -184,7 +170,6 @@ def load_checkpoint_by_name(cur, checkpoint_name: str) -> CheckpointSnapshot:
         raise RuntimeError(f"Checkpoint not found in checkpoints by Name: {checkpoint_name}")
 
     sev = (r["Severity"] or "").lower()
-    # Bazı ortamlarda "info" gelebilir; caution'a kırp
     if sev == "info":
         sev = "caution"
     if sev not in SEVERITY_WEIGHT:
@@ -224,6 +209,33 @@ def already_migrated(cur, assessment_id: int, exec_date: date) -> bool:
     return cur.fetchone() is not None
 
 
+def recompute_last_run_ids(cur) -> None:
+    """
+    last_run_id'yi tarihe göre garanti altına al:
+    - her assessment için max(executed_at) gününü bul
+    - o günde birden fazla run varsa max(run_id) seç
+    """
+    log("-> Son adım: assessments.last_run_id tarihe göre yeniden hesaplanıyor...")
+    cur.execute(
+        """
+        UPDATE assessments a
+        LEFT JOIN (
+          SELECT r.assessment_id,
+                 MAX(r.run_id) AS last_run_id
+          FROM assessment_runs r
+          JOIN (
+            SELECT assessment_id, MAX(executed_at) AS max_exec
+            FROM assessment_runs
+            GROUP BY assessment_id
+          ) mx ON mx.assessment_id = r.assessment_id AND r.executed_at = mx.max_exec
+          GROUP BY r.assessment_id
+        ) x ON x.assessment_id = a.assessment_id
+        SET a.last_run_id = x.last_run_id
+        """
+    )
+    log("-> last_run_id re-compute tamam.")
+
+
 # -----------------------------
 # MAIN
 # -----------------------------
@@ -235,11 +247,11 @@ def migrate() -> Dict[str, int]:
     cur.execute("SELECT DATABASE() AS dbname")
     log(f"Bağlı DB: {cur.fetchone().get('dbname')}")
 
-    # Cache (performans)
     assessment_cache: Dict[str, Dict[str, Any]] = {}
     checkpoint_cache: Dict[str, CheckpointSnapshot] = {}
 
-    log("assessment_migrate tablosundan kaynak data okunuyor (ORDER BY execution_date, assessment_description)...")
+    # >>> DEĞİŞİKLİK: assessment bazında eski->yeni
+    log("assessment_migrate okunuyor (ORDER BY assessment_description, execution_date)...")
     cur.execute(
         """
         SELECT
@@ -249,7 +261,7 @@ def migrate() -> Dict[str, int]:
             SCORE_DESCRIPTION,
             RESULT_DETAILS
         FROM assessment_migrate
-        ORDER BY EXECUTION_DATE, ASSESSMENT_DESCRIPTION
+        ORDER BY ASSESSMENT_DESCRIPTION, EXECUTION_DATE
         """
     )
     src_rows = cur.fetchall()
@@ -293,7 +305,6 @@ def migrate() -> Dict[str, int]:
 
         log(f"Grup işleniyor: {assessment_name} | {exec_date} | satır={len(bucket)}")
 
-        # SKIP: aynı assessment + aynı gün zaten varsa
         if already_migrated(cur, assessment_id, exec_date):
             stats["groups_skipped"] += 1
             log(f"SKIP: Zaten var (assessment_id={assessment_id}, date={exec_date})")
@@ -307,8 +318,7 @@ def migrate() -> Dict[str, int]:
         asset_impact_enum = assessment["asset_impact"]
         asset_impact_value = ASSET_IMPACT_WEIGHT[asset_impact_enum]
 
-        # 1) assessment_runs insert
-        log("-> assessment_runs insert ediliyor (status=incomplete)...")
+        log("-> assessment_runs insert (status=incomplete)...")
         cur.execute(
             """
             INSERT INTO assessment_runs
@@ -330,11 +340,10 @@ def migrate() -> Dict[str, int]:
             ),
         )
         run_id = cur.lastrowid
-        log(f"-> run_id oluşturuldu: {run_id}")
+        log(f"-> run_id: {run_id}")
 
-        # 2) assessment_run_checkpoints insert
         out_rows_for_metrics: List[Dict[str, Any]] = []
-        log("-> assessment_run_checkpoints insert ediliyor (checkpoint snapshot + pass/fail)...")
+        log("-> assessment_run_checkpoints insert (snapshot + pass/fail)...")
 
         for r in bucket:
             cp_name = r["TEST_DESCRIPTION"]
@@ -351,11 +360,6 @@ def migrate() -> Dict[str, int]:
 
             evidence_text = None
             error_text = None
-
-            # Kullanıcı kuralı:
-            # pass -> null
-            # fail -> evidence_text = RESULT_DETAILS
-            # error -> error_text = RESULT_DETAILS  (bu dataset'te beklenmiyor ama fallback)
             if test_result == "fail":
                 evidence_text = safe_limit_text(r.get("RESULT_DETAILS"), MAX_EVIDENCE_CHARS)
             elif test_result == "error":
@@ -403,18 +407,12 @@ def migrate() -> Dict[str, int]:
             stats["checkpoints_inserted"] += 1
 
             out_rows_for_metrics.append(
-                {
-                    "checkpoint_severity": cp.severity,
-                    "checkpoint_category": cp.category,
-                    "test_result": test_result,
-                }
+                {"checkpoint_severity": cp.severity, "checkpoint_category": cp.category, "test_result": test_result}
             )
 
-        log(f"-> checkpoint insert tamam: {len(bucket)} satır")
+        log(f"-> checkpoint insert tamam: {len(bucket)}")
 
-        # 3) assessment_run_metrics insert (all + severity + category)
-        log("-> assessment_run_metrics hesaplanıyor ve insert ediliyor...")
-
+        log("-> assessment_run_metrics insert...")
         def insert_metric(dim_type: str, dim_value: str, subset: List[Dict[str, Any]]) -> Dict[str, Any]:
             m = calculate_metrics(subset, asset_impact_value)
             cur.execute(
@@ -457,21 +455,12 @@ def migrate() -> Dict[str, int]:
         overall = insert_metric("all", "all", out_rows_for_metrics)
 
         for sev in SEVERITY_WEIGHT.keys():
-            insert_metric(
-                "severity",
-                sev,
-                [x for x in out_rows_for_metrics if (x.get("checkpoint_severity") or "").lower() == sev],
-            )
+            insert_metric("severity", sev, [x for x in out_rows_for_metrics if (x.get("checkpoint_severity") or "").lower() == sev])
 
         for cat in ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]:
-            insert_metric(
-                "category",
-                cat,
-                [x for x in out_rows_for_metrics if (x.get("checkpoint_category") or "").upper() == cat],
-            )
+            insert_metric("category", cat, [x for x in out_rows_for_metrics if (x.get("checkpoint_category") or "").upper() == cat])
 
-        # 4) assessment_runs update (snapshot + status)
-        log("-> assessment_runs update ediliyor (total/success/fail/risk/status)...")
+        log("-> assessment_runs update (final snapshot)...")
         cur.execute(
             """
             UPDATE assessment_runs
@@ -504,11 +493,9 @@ def migrate() -> Dict[str, int]:
             ),
         )
 
-        # 5) category × severity matrix
-        log("-> assessment_run_category_metrics insert ediliyor (category×severity matrix)...")
+        log("-> assessment_run_category_metrics insert (matrix)...")
         categories = ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]
         severities = ["caution", "minor", "major", "critical"]
-
         matrix: Dict[Tuple[str, str], Dict[str, int]] = {(c, s): {"t": 0, "p": 0, "f": 0, "e": 0} for c in categories for s in severities}
 
         for x in out_rows_for_metrics:
@@ -543,30 +530,20 @@ def migrate() -> Dict[str, int]:
                     (rmonth, run_id, cat, sev, cell["t"], cell["p"], cell["f"], cell["e"], executed_at),
                 )
 
-        # 6) assessments.last_run_id update
-        log("-> assessments.last_run_id güncelleniyor...")
-        cur.execute(
-            "UPDATE assessments SET last_run_id=%s WHERE assessment_id=%s",
-            (run_id, assessment_id),
-        )
+        # last_run_id burada da set ediliyor ama en sonda yeniden hesaplanacak.
+        cur.execute("UPDATE assessments SET last_run_id=%s WHERE assessment_id=%s", (run_id, assessment_id))
 
         stats["groups_inserted"] += 1
-        log(f"Grup tamamlandı ✅ run_id={run_id} | checkpoints={len(bucket)} | risk={overall['risk']}")
+        log(f"Grup tamam ✅ run_id={run_id} | risk={overall['risk']}")
 
         bucket = []
         current_key = None
 
-    # Gruplama (execution_date, assessment_description)
-    log("Gruplama başlıyor (execution_date + assessment_description)...")
+    log("Gruplama başlıyor (assessment_description + execution_date)...")
     for r in src_rows:
         a_name = r["ASSESSMENT_DESCRIPTION"]
         exec_dt = r["EXECUTION_DATE"]
-
-        if isinstance(exec_dt, datetime):
-            exec_date = exec_dt.date()
-        else:
-            exec_date = exec_dt  # DATE
-
+        exec_date = exec_dt.date() if isinstance(exec_dt, datetime) else exec_dt
         key = (a_name, exec_date)
 
         if current_key is None:
@@ -580,7 +557,9 @@ def migrate() -> Dict[str, int]:
 
     flush_bucket()
 
-    log("Migration tamamlandı. Özet yazılıyor...")
+    recompute_last_run_ids(cur)
+
+    log("Migration tamamlandı.")
     db.close()
     return stats
 
