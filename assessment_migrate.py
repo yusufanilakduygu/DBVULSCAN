@@ -20,13 +20,25 @@ KURALLAR (kullanıcı onaylı):
 - RESULT_DETAILS: sadece fail'de evidence_text'e yazılacak
 - executed_at = assessment_migrate.EXECUTION_DATE
 - Aynı (assessment, date) varsa SKIP
+
+EK KONTROLLER:
+1) assessment_migrate.ASSESSMENT_DESCRIPTION -> assessments.name var mı?
+2) assessment_migrate.TEST_DESCRIPTION -> checkpoints.Name var mı?
+3) assessment'ın benchmark'ında (benchmark_checkpoints) bu checkpoint var mı?
+
+CLI:
+- -u / --verbose : tüm detay logları göster
+- (default)      : sadece ERROR logları göster
 """
 
 from __future__ import annotations
 
+import argparse
+import sys
+import traceback
 from dataclasses import dataclass
 from datetime import date, datetime, time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from db import get_db
 
@@ -34,18 +46,26 @@ from db import get_db
 # CONSTANTS
 # -----------------------------
 SEVERITY_WEIGHT = {"caution": 1, "minor": 2, "major": 3, "critical": 4}
-
 ASSET_IMPACT_WEIGHT = {"very_low": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}
 
 MAX_ASSET_IMPACT = 5
 MAX_EVIDENCE_CHARS = 200_000
 
+# -----------------------------
+# LOGGING
+# -----------------------------
+VERBOSE = False
 
-# -----------------------------
-# LOG HELPERS
-# -----------------------------
+
 def log(msg: str) -> None:
-    print(f"[assessment_migrate] {msg}", flush=True)
+    """INFO log (sadece -u/--verbose ile basılır)."""
+    if VERBOSE:
+        print(f"[assessment_migrate] {msg}", flush=True)
+
+
+def log_error(msg: str) -> None:
+    """ERROR log (her zaman basılır)."""
+    print(f"[assessment_migrate][ERROR] {msg}", file=sys.stderr, flush=True)
 
 
 # -----------------------------
@@ -137,6 +157,7 @@ def calculate_metrics(rows: List[Dict[str, Any]], asset_impact_value: int) -> Di
 # LOADERS
 # -----------------------------
 def load_assessment_by_name(cur, assessment_name: str) -> Dict[str, Any]:
+    # (1) kontrol burada: yoksa RuntimeError
     cur.execute("SELECT * FROM assessments WHERE name=%s", (assessment_name,))
     row = cur.fetchone()
     if not row:
@@ -145,6 +166,7 @@ def load_assessment_by_name(cur, assessment_name: str) -> Dict[str, Any]:
 
 
 def load_checkpoint_by_name(cur, checkpoint_name: str) -> CheckpointSnapshot:
+    # (2) kontrol burada: yoksa RuntimeError
     cur.execute(
         """
         SELECT
@@ -209,6 +231,23 @@ def already_migrated(cur, assessment_id: int, exec_date: date) -> bool:
     return cur.fetchone() is not None
 
 
+def load_benchmark_checkpoint_ids(cur, benchmark_id: int) -> Set[int]:
+    """
+    (3) Benchmark -> checkpoint membership kontrolü için:
+    benchmark_checkpoints tablosundan benchmark_id'nin checkpoint listesi.
+    """
+    cur.execute(
+        """
+        SELECT checkpoint_id
+          FROM benchmark_checkpoints
+         WHERE benchmark_id=%s
+        """,
+        (benchmark_id,),
+    )
+    rows = cur.fetchall()
+    return {int(r["checkpoint_id"]) for r in rows}
+
+
 def recompute_last_run_ids(cur) -> None:
     """
     last_run_id'yi tarihe göre garanti altına al:
@@ -249,8 +288,8 @@ def migrate() -> Dict[str, int]:
 
     assessment_cache: Dict[str, Dict[str, Any]] = {}
     checkpoint_cache: Dict[str, CheckpointSnapshot] = {}
+    benchmark_cp_cache: Dict[int, Set[int]] = {}  # benchmark_id -> {checkpoint_id}
 
-    # >>> DEĞİŞİKLİK: assessment bazında eski->yeni
     log("assessment_migrate okunuyor (ORDER BY assessment_description, execution_date)...")
     cur.execute(
         """
@@ -286,6 +325,12 @@ def migrate() -> Dict[str, int]:
             checkpoint_cache[cp_name] = load_checkpoint_by_name(cur, cp_name)
         return checkpoint_cache[cp_name]
 
+    def get_benchmark_cp_ids(benchmark_id: int) -> Set[int]:
+        if benchmark_id not in benchmark_cp_cache:
+            log(f"Benchmark checkpoint cache miss: benchmark_id={benchmark_id} -> benchmark_checkpoints okunuyor")
+            benchmark_cp_cache[benchmark_id] = load_benchmark_checkpoint_ids(cur, benchmark_id)
+        return benchmark_cp_cache[benchmark_id]
+
     current_key: Optional[Tuple[str, date]] = None
     bucket: List[Dict[str, Any]] = []
 
@@ -300,8 +345,9 @@ def migrate() -> Dict[str, int]:
         stats["groups_total"] += 1
 
         assessment_name, exec_date = current_key
-        assessment = get_assessment(assessment_name)
+        assessment = get_assessment(assessment_name)  # (1) burada garanti
         assessment_id = int(assessment["assessment_id"])
+        benchmark_id = int(assessment["benchmark_id"])
 
         log(f"Grup işleniyor: {assessment_name} | {exec_date} | satır={len(bucket)}")
 
@@ -345,9 +391,20 @@ def migrate() -> Dict[str, int]:
         out_rows_for_metrics: List[Dict[str, Any]] = []
         log("-> assessment_run_checkpoints insert (snapshot + pass/fail)...")
 
+        # (3) için: bu benchmark'ın allowed checkpoint id set'i
+        allowed_cp_ids = get_benchmark_cp_ids(benchmark_id)
+
         for r in bucket:
             cp_name = r["TEST_DESCRIPTION"]
-            cp = get_checkpoint(cp_name)
+            cp = get_checkpoint(cp_name)  # (2) burada garanti
+
+            # (3) benchmark membership check
+            if cp.checkpoint_id not in allowed_cp_ids:
+                raise RuntimeError(
+                    "Checkpoint benchmark'a bağlı değil: "
+                    f"assessment={assessment_name}, benchmark_id={benchmark_id}, "
+                    f"checkpoint_name={cp.name}, checkpoint_id={cp.checkpoint_id}"
+                )
 
             score_raw = (r.get("SCORE_DESCRIPTION") or "").strip().lower()
             if score_raw == "pass":
@@ -413,6 +470,7 @@ def migrate() -> Dict[str, int]:
         log(f"-> checkpoint insert tamam: {len(bucket)}")
 
         log("-> assessment_run_metrics insert...")
+
         def insert_metric(dim_type: str, dim_value: str, subset: List[Dict[str, Any]]) -> Dict[str, Any]:
             m = calculate_metrics(subset, asset_impact_value)
             cur.execute(
@@ -455,10 +513,18 @@ def migrate() -> Dict[str, int]:
         overall = insert_metric("all", "all", out_rows_for_metrics)
 
         for sev in SEVERITY_WEIGHT.keys():
-            insert_metric("severity", sev, [x for x in out_rows_for_metrics if (x.get("checkpoint_severity") or "").lower() == sev])
+            insert_metric(
+                "severity",
+                sev,
+                [x for x in out_rows_for_metrics if (x.get("checkpoint_severity") or "").lower() == sev],
+            )
 
         for cat in ["AUTH", "PRIV", "CONFIG", "PATCH", "AUDIT", "ENCRYPT", "ACCOUNT", "OTHER"]:
-            insert_metric("category", cat, [x for x in out_rows_for_metrics if (x.get("checkpoint_category") or "").upper() == cat])
+            insert_metric(
+                "category",
+                cat,
+                [x for x in out_rows_for_metrics if (x.get("checkpoint_category") or "").upper() == cat],
+            )
 
         log("-> assessment_runs update (final snapshot)...")
         cur.execute(
@@ -564,13 +630,34 @@ def migrate() -> Dict[str, int]:
     return stats
 
 
-if __name__ == "__main__":
-    s = migrate()
-    log(
-        "ÖZET => "
-        f"groups_total={s['groups_total']}, "
-        f"inserted={s['groups_inserted']}, "
-        f"skipped={s['groups_skipped']}, "
-        f"checkpoints_inserted={s['checkpoints_inserted']}, "
-        f"unknown_score_to_error={s['unknown_score_mapped_to_error']}"
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="DBVulScan assessment migration runner")
+    p.add_argument(
+        "-u",
+        "--verbose",
+        action="store_true",
+        help="Verbose output (tüm detay logları gösterir). Default: sadece hatalar.",
     )
+    return p.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    VERBOSE = bool(args.verbose)
+
+    try:
+        s = migrate()
+        # Özet: verbose olmasa bile kısa özet kalsın (istersen bunu da sadece -u yaparız)
+        print(
+            "[assessment_migrate] ÖZET => "
+            f"groups_total={s['groups_total']}, "
+            f"inserted={s['groups_inserted']}, "
+            f"skipped={s['groups_skipped']}, "
+            f"checkpoints_inserted={s['checkpoints_inserted']}, "
+            f"unknown_score_to_error={s['unknown_score_mapped_to_error']}",
+            flush=True,
+        )
+    except Exception as e:
+        log_error(str(e))
+        traceback.print_exc()
+        sys.exit(1)
