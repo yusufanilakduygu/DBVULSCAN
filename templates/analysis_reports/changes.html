@@ -1,0 +1,168 @@
+{% extends "layout.html" %}
+{% block title %}Vulnerability Scan Changes · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+  .ch-wrap{background:#fff;border:1px solid #e5e9f2;border-radius:12px;padding:18px;}
+  .ch-title{font-weight:900;font-size:26px;margin-bottom:16px;}
+  .ch-form{
+    display:grid;
+    grid-template-columns: 140px 240px;
+    gap:10px 12px;
+    align-items:center;
+    max-width:520px;
+  }
+  .ch-form label{font-weight:700;}
+  .ch-form input,.ch-form select{
+    height:36px;border:1px solid #111;border-radius:6px;padding:6px 10px;
+  }
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:36px;padding:0 14px;border-radius:8px;border:1px solid #111;
+    background:#fff;font-weight:800;text-decoration:none;color:#111;
+  }
+  .btn:hover{background:#f3f4f6;}
+  .ch-meta{display:flex;justify-content:space-between;margin:14px 2px;font-weight:800;}
+  table{width:100%;border-collapse:collapse;}
+  th,td{border-top:1px solid #e5e9f2;padding:8px;}
+  th{background:#f8fafc;text-align:left;}
+  .pager{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
+  .pager a,.pager span{
+    border:1px solid #cbd5e1;border-radius:8px;padding:6px 10px;
+    text-decoration:none;font-weight:800;font-size:12px;color:#111;
+  }
+  .pager .cur{background:#111;color:#fff;}
+</style>
+
+<div class="ch-wrap">
+  <div class="ch-title">Vulnerability Scan Changes</div>
+
+  <form method="get" action="{{ url_for('analysis_reports.changes') }}">
+    <div class="ch-form">
+      <label>Start Date</label>
+      <input type="date" name="start_date" value="{{ form.start_date }}">
+
+      <label>End Date</label>
+      <input type="date" name="end_date" value="{{ form.end_date }}">
+
+      <label>Domains</label>
+      <select name="domain_id">
+        <option value="">[ List of Value Domains ]</option>
+        {% for d in domains %}
+          <option value="{{ d.domain_id }}"
+            {% if form.domain_id|string == d.domain_id|string %}selected{% endif %}>
+            {{ d.name }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <label>Severity</label>
+      <select name="severity">
+        <option value="">(All)</option>
+        {% for s in severity_options %}
+          <option value="{{ s }}"
+            {% if form.severity == s %}selected{% endif %}>
+            {{ s }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <label>Category</label>
+      <select name="category">
+        <option value="">(All)</option>
+        {% for c in category_options %}
+          <option value="{{ c }}"
+            {% if form.category == c %}selected{% endif %}>
+            {{ c }}
+          </option>
+        {% endfor %}
+      </select>
+
+<label>Result Change</label>
+<select name="result_change">
+  <option value="">(All)</option>
+  {% for rc in result_change_options %}
+    <option value="{{ rc }}" {% if form.result_change == rc %}selected{% endif %}>{{ rc }}</option>
+  {% endfor %}
+</select>
+    </div>
+
+    <div style="margin-top:12px;">
+      <button class="btn" type="submit">Run</button>
+    </div>
+  </form>
+
+  <div class="ch-meta">
+    <div>Records: {{ total }}</div>
+    <div>
+      {% if pages and total %}
+        Page {{ page }} / {{ pages }}
+      {% endif %}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Assessment Name</th>
+        <th>Checkpoint Name</th>
+        <th>Severity</th>
+        <th>Category</th>
+        <th>Result Change</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if rows %}
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.assessment_name }}</td>
+            <td>{{ r.checkpoint_name }}</td>
+            <td>{{ r.checkpoint_severity }}</td>
+            <td>{{ r.checkpoint_category }}</td>
+            <td>{{ r.result_change }}</td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="5" style="color:#64748b;">No data.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  {% if pages and pages > 1 %}
+  <div class="pager">
+
+    {% if page > 1 %}
+      <a href="{{ url_for('analysis_reports.changes',
+          start_date=form.start_date,
+          end_date=form.end_date,
+          domain_id=form.domain_id,
+          severity=form.severity,
+          category=form.category,
+          result_change=form.result_change,
+          page=page-1) }}">Prev</a>
+    {% else %}
+      <span>Prev</span>
+    {% endif %}
+
+    <span class="cur">{{ page }}</span>
+
+    {% if page < pages %}
+      <a href="{{ url_for('analysis_reports.changes',
+          start_date=form.start_date,
+          end_date=form.end_date,
+          domain_id=form.domain_id,
+          severity=form.severity,
+          category=form.category,
+          result_change=form.result_change,
+          page=page+1) }}">Next</a>
+    {% else %}
+      <span>Next</span>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

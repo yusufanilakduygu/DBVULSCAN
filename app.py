@@ -15,6 +15,7 @@ from assessments import assessments_bp
 from assessment_runs import assessment_runs_bp
 from domains import domains_bp
 from jobs import jobs_bp
+from analysis_reports import analysis_reports_bp
 
 
 def get_setting_value(key):
@@ -65,6 +66,7 @@ def create_app():
     app.register_blueprint(settings_bp)
     app.register_blueprint(benchmarks_bp, url_prefix="/benchmarks")
     app.register_blueprint(assessments_bp, url_prefix="/assessments")
+    app.register_blueprint(analysis_reports_bp, url_prefix="/analysis-reports")
 
     # Domains
     app.register_blueprint(domains_bp, url_prefix="/domains")

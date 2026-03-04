@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+{% block title %}Vulnerability Scan Analysis & Reports · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+  .ar-wrap{
+    background:#fff;border:1px solid #e5e9f2;border-radius:12px;
+    padding:22px 18px;
+  }
+  .ar-title{
+    text-align:center;font-weight:900;font-size:22px;margin:8px 0 18px 0;
+  }
+  .ar-grid{
+    display:flex;flex-wrap:wrap;gap:18px;
+    align-items:flex-start;
+    padding:10px 6px 16px 6px;
+  }
+  .ar-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:180px;height:44px;
+    border:1px solid #111;border-radius:8px;
+    background:#fff;color:#111;
+    text-decoration:none;font-weight:700;
+    box-shadow:0 1px 0 rgba(0,0,0,.08);
+  }
+  .ar-btn:hover{ background:#f8fafc; }
+</style>
+
+<div class="ar-wrap">
+  <div class="ar-title">Vulnerability Scan Analysis &amp; Reports</div>
+
+  <div class="ar-grid">
+    <a class="ar-btn" href="{{ url_for('analysis_reports.changes') }}">Changes</a>
+    <a class="ar-btn" href="{{ url_for('analysis_reports.fail_analysis') }}">Fail Analysis</a>
+    <a class="ar-btn" href="{{ url_for('analysis_reports.monthly_reports') }}">Monthly Reports</a>
+  </div>
+</div>
+{% endblock %}
