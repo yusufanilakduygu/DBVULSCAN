@@ -1,0 +1,69 @@
+{% extends "layout.html" %}
+{% block title %}Monthly Reports · DB Vulnerability Scan{% endblock %}
+
+{% block content %}
+<style>
+  .vr-wrap{
+    background:#fff;border:1px solid #e5e9f2;border-radius:12px;
+    padding:22px 18px;
+    max-width:720px;
+  }
+  .vr-title{
+    font-weight:900;font-size:28px;margin:6px 0 18px 0;
+  }
+  .vr-form{
+    display:grid;
+    grid-template-columns: 160px 340px;
+    gap:14px 16px;
+    align-items:center;
+  }
+  .vr-form label{font-weight:800;}
+  .vr-form input,.vr-form select{
+    height:40px;border:1px solid #111;border-radius:8px;padding:8px 12px;
+    font-weight:600;
+  }
+  .vr-actions{margin-top:18px;}
+  .btn-run{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:40px;padding:0 16px;border-radius:10px;
+    border:1px solid #111;background:#fff;color:#111;
+    font-weight:900;text-decoration:none;
+    box-shadow:0 1px 0 rgba(0,0,0,.08);
+  }
+  .btn-run:hover{background:#f8fafc;}
+  .hint{color:#64748b;font-size:12px;margin-top:10px;}
+</style>
+
+<div class="vr-wrap">
+  <div class="vr-title">Vulnerability Scan Monthly Reports</div>
+
+  <form method="get" action="{{ url_for('analysis_reports.monthly_domain_analysis') }}">
+    <div class="vr-form">
+      <label>Start Date</label>
+      <input type="date" name="start_date" value="{{ form.start_date }}">
+
+      <label>End Date</label>
+      <input type="date" name="end_date" value="{{ form.end_date }}">
+
+      <label>Domains</label>
+      <select name="domain_id">
+        <option value="">[ List of Value Domains ]</option>
+        {% for d in domains %}
+          <option value="{{ d.domain_id }}"
+            {% if form.domain_id|string == d.domain_id|string %}selected{% endif %}>
+            {{ d.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="vr-actions">
+      <button class="btn-run" type="submit" name="run" value="1">Run</button>
+    </div>
+
+    <div class="hint">
+      Run basınca PDF report_dir altına yazılır ve ekranda açılır.
+    </div>
+  </form>
+</div>
+{% endblock %}

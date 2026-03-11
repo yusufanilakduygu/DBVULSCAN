@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import render_template
+from flask import render_template, redirect, url_for
 from . import analysis_reports_bp
 
 
@@ -16,4 +16,5 @@ def fail_analysis():
 
 @analysis_reports_bp.route("/monthly-reports", methods=["GET"])
 def monthly_reports():
-    return render_template("analysis_reports/placeholder.html", title="Monthly Reports")
+    # Eski buton/link kalırsa kırılmasın diye: direkt yeni sayfaya yönlendir
+    return redirect(url_for("analysis_reports.monthly_domain_analysis"))

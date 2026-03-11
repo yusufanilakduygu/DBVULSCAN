@@ -9,3 +9,4 @@ analysis_reports_bp = Blueprint(
 
 from . import routes  # noqa: E402,F401
 from . import routes_change  # noqa: E402,F401
+from . import monthly_domain_analysis_routes  # noqa: E402,F401
